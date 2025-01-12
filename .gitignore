@@ -1,0 +1,5 @@
+.env
+logs.log
+students_files/*
+database/*
+.venv/
