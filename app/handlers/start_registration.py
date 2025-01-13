@@ -63,14 +63,15 @@ async def add_teacher(callback: types.CallbackQuery):
 
         await callback.message.edit_text("Теперь ты Преподаватель! Чтобы получить больше информации напиши /help",
                                          reply_markup=keyboards.keyboard_main_teacher(), parse_mode=ParseMode.HTML)
+        await callback.answer("Успешная регистрация")
 
     else:
         logger.error(f"User {callback.from_user.username} tried to sign up as teacher")
-        await callback.message.edit_text("Ты не преподаватель! Выбери другую роль",
-                                         reply_markup=keyboards.keyboard_start_registration(),
-                                         parse_mode=ParseMode.HTML)
+        await callback.answer("Ты не преподаватель! Выбери другую роль")
+        # await callback.message.edit_text("Ты не преподаватель! Выбери другую роль",
+        #                                  reply_markup=keyboards.keyboard_start_registration(),
+        #                                  parse_mode=ParseMode.HTML)
 
-    await callback.answer("Успешная регистрация")
 
 
 @router.callback_query(F.data == "student")
