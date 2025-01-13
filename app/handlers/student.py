@@ -6,10 +6,11 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram import F
-from aiogram.filters import StateFilter
+from aiogram.filters import StateFilter, Command
 from utilits import keyboards
 from aiogram import Bot, types, Router
 from loguru import logger
+from aiogram.filters import BaseFilter
 
 router = Router()
 
@@ -21,6 +22,15 @@ class SendPiece(StatesGroup):
     waiting_urgency = State()
     waiting_file = State()
     waiting_comments = State()
+
+
+class IsStudent(BaseFilter):
+    async def __call__(self, message: types.Message):
+        role = [x[0] for x in cursor.execute(f"SELECT role FROM users WHERE idt={message.from_user.id}").fetchall()][0]
+        # print(message.from_user.id, ids)
+        return role == "student"
+
+
 
 
 async def download_file(message: types.Message, bot: Bot) -> None:
@@ -42,6 +52,14 @@ async def download_file(message: types.Message, bot: Bot) -> None:
     logger.info("Successfully downloaded document")
 
 
+@router.message(Command("cancel"), IsStudent())
+async def cancel(message: types.Message, state: FSMContext):
+    await message.answer("Всё отменили, рабочих отослали.\nВыбирай, <b>Ученик!</b>", reply_markup=keyboards.keyboard_main_student(),
+                                     parse_mode=ParseMode.HTML)
+
+    await state.clear()
+
+
 @router.callback_query(StateFilter(None), F.data == "send_piece")
 async def send_piece(callback: types.CallbackQuery, state: FSMContext) -> None:
     await callback.message.edit_text("Выбери <b>приоритет</b> задачи: ",
@@ -51,7 +69,7 @@ async def send_piece(callback: types.CallbackQuery, state: FSMContext) -> None:
     logger.info(f"{callback.message.from_user.username} sets state SendPiece.waiting_urgency")
 
 
-@router.callback_query(F.data, SendPiece.waiting_urgency)
+@router.callback_query(F.data.in_({"high", "medium", "low"}), SendPiece.waiting_urgency)
 async def get_urgency(callback: types.CallbackQuery, state: FSMContext) -> None:
     if callback.data == "high":
         await state.update_data(urgency=1)
@@ -100,14 +118,22 @@ async def get_file_and_insert(message: types.Message, state: FSMContext, bot: Bo
     conn.commit()
     logger.success(f"Added request from {message.from_user.username} to requests_queue")
 
+    request_id = [x[0] for x in cursor.execute(
+        "SELECT id FROM requests_queue WHERE proceeed=0 OR proceeed=1 order by urgency").fetchall()][-1]
+
     await download_file(message, bot)
-    await message.reply("<b>Запрос отправлен в очередь</b>! Когда преподаватель возьмет его "
+    await message.reply(f"<b>Запрос с ID {request_id} отправлен в очередь</b>! Когда преподаватель возьмет его "
                         "на печать/резку, тебе отправят сообщение :0",
                         reply_markup=keyboards.keyboard_main_student(), parse_mode=ParseMode.HTML)
 
     await state.clear()
     logger.info("SendPiece FSM was cleared")
 
-# async def back(callback: types.callback_query, state: FSMContext):
-#     await callback.message.edit_text("Getan", reply_markup=keyboards.keyboard_student())
-#     await state.clear()
+
+@router.callback_query(SendPiece.waiting_urgency, F.data == "back_to_main_student")
+async def back(callback: types.callback_query, state: FSMContext):
+    await callback.message.edit_text("Выбирай, <b>Ученик!</b>", reply_markup=keyboards.keyboard_main_student(),
+                                     parse_mode=ParseMode.HTML)
+    await state.clear()
+
+

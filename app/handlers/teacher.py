@@ -9,6 +9,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram import F
+from aiogram.filters import Command
 
 from utilits import keyboards
 
@@ -72,11 +73,19 @@ def generate_message_to_send(students_messages) -> str:
 
     s = ''
     if len(message_to_send) == 0:
-        s += "Пусто"
+        s += "Очередь пуста и запросов нет!"
     else:
         for a in message_to_send:
             s += a
     return s
+
+
+@router.message(Command("cancel"))
+async def cancel(message: types.Message, state: FSMContext):
+    await message.answer("Всё отменили, рабочих отослали.\nВыбирай, <b>Преподаватель!</b>", reply_markup=keyboards.keyboard_main_teacher(),
+                                     parse_mode=ParseMode.HTML)
+
+    await state.clear()
 
 
 @router.callback_query(F.data.in_({"sort_urgency", "sort_date", "sort_type"}))
@@ -118,7 +127,8 @@ async def check_messages(callback: types.CallbackQuery, state: FSMContext, bot: 
                                                parse_mode=ParseMode.HTML)
     else:
         try:
-            await bot.delete_message(callback.message.from_user.id, data['msg'])
+            # await bot.delete_message(callback.message.from_user.id, data['msg'])
+            await callback.message.delete()
         except aiogram.exceptions.TelegramBadRequest as e:
             logger.error(f"Occurred {e} with id {data['msg']}")
         msg = await callback.message.answer(s, reply_markup=keyboards.keyboard_sort_teacher(),
@@ -153,8 +163,11 @@ async def waiting_id(message: types.Message, state: FSMContext, bot: Bot) -> obj
     data = await state.get_data()
 
     # Delete previous message and message sent by user
-    await bot.delete_message(message.from_user.id, data['msg'])
-    await message.delete()
+    try:
+        await bot.delete_message(message.from_user.id, data['msg'])
+        await message.delete()
+    except aiogram.exceptions.TelegramBadRequest as e:
+        logger.error(f"Occurred {e}")
     logger.info(f"Deleting message from user and previous message with id {data['msg']}")
 
     message_to_send = ''
@@ -199,7 +212,7 @@ async def take_on_work(callback: types.CallbackQuery, bot: Bot, state: FSMContex
         conn.commit()
 
         logger.success("File was take on work")
-        await bot.send_message(data['idt'], "Ваша деталь принята на печать/резку")
+        await bot.send_message(data['idt'], f"Ваша деталь с ID {data['id']} принята на печать/резку")
         await callback.answer("Принято на работу", reply_markup=keyboards.keyboard_main_teacher())
     else:
         logger.error("File was already taken on work")
@@ -211,11 +224,20 @@ async def take_on_work(callback: types.CallbackQuery, bot: Bot, state: FSMContex
 
 @router.callback_query(CheckMessage.waiting_action, F.data == "end")
 async def finish_work(callback: types.CallbackQuery, state: FSMContext):
-    await callback.message.answer("Пришлите фотографию отчет печати/резки", parse_mode=ParseMode.HTML)
+    data = await state.get_data()
 
-    await state.set_state(CheckMessage.waiting_photo_report)
-    await callback.answer()
-    logger.info(f"{callback.message.from_user.username} sets state CheckMessage.waiting_photo_report")
+    is_proceed = [x[0] for x in
+                    cursor.execute(f"SELECT proceeed FROM requests_queue WHERE id={data['id']}").fetchall()][0]
+    if is_proceed == 0:
+        await callback.answer("Работа еще не была принята на работу!")
+    if is_proceed == 1:
+        await callback.message.delete()
+        msg = await callback.message.answer("Пришлите фотографию отчет печати/резки", parse_mode=ParseMode.HTML)
+
+        await state.set_state(CheckMessage.waiting_photo_report)
+        await callback.answer()
+        await state.update_data(msg=msg.message_id)
+        logger.info(f"{callback.message.from_user.username} sets state CheckMessage.waiting_photo_report")
 
 
 def delete_file(data) -> None:
@@ -240,6 +262,10 @@ def delete_file(data) -> None:
 async def finish_work_report(message: types.Message, bot: Bot, state: FSMContext):
     data = await state.get_data()
 
+    print(data['msg'])
+    # await message.delete()
+    await bot.delete_message(message.from_user.id, int(data['msg']))
+
     delete_file(data)
 
     cursor.execute(f"UPDATE requests_queue SET proceeed=2 WHERE id={data['id']}")
@@ -252,7 +278,7 @@ async def finish_work_report(message: types.Message, bot: Bot, state: FSMContext
 
     await bot.download(message.photo[-1], f"temporal/{data['idt']}{current_time}.jpg")
     await bot.send_photo(data['idt'], photo=types.FSInputFile(f"temporal/{data['idt']}{current_time}.jpg"),
-                         caption="Ваша работа готова")
+                         caption=f"Ваша работа с ID {data['id']} завершена!")
 
     try:
         os.remove(f"temporal/{data['idt']}{current_time}.jpg")
@@ -263,7 +289,7 @@ async def finish_work_report(message: types.Message, bot: Bot, state: FSMContext
                          parse_mode=ParseMode.HTML, reply_markup=keyboards.keyboard_main_teacher())
 
     await state.clear()
-    logger.info("CheckMessage FSM was cleared")
+    logger.success("CheckMessage FSM was cleared")
 
 
 @router.callback_query(CheckMessage.waiting_id, F.data == "back_to_main_teacher")

@@ -4,6 +4,7 @@ from aiogram.filters import Command
 from aiogram import Bot, types, Dispatcher, Router
 from loguru import logger
 import os
+from dotenv import load_dotenv
 
 # from start_registration import teachers
 
@@ -63,7 +64,8 @@ dp = Dispatcher()
 #
 
 async def help(message: types.Message):
-    await message.answer("Тут будет хелп")
+    await message.answer("/cancel для отмены состояний\n/start если ничего не работает\n"
+                         "если совсем ничего не работает писать @tomatocoder")
 
 
 async def delete(message: types.Message):
@@ -79,3 +81,4 @@ async def delete(message: types.Message):
 
 def register_test_handler(dp: Dispatcher):
     dp.message.register(help, Command("help"))
+    # dp.message.register(help, Command("cancel"))

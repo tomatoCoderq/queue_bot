@@ -1,6 +1,5 @@
 import os
 import sqlite3
-from turtledemo.penrose import start
 
 from aiogram import Bot, Dispatcher
 from loguru import logger
