@@ -2,15 +2,16 @@ from aiogram import types
 
 
 def keyboard_start_registration():
-    buttons = [[types.InlineKeyboardButton(text="Ученик", callback_data="student")],
-               [types.InlineKeyboardButton(text="Преподаватель", callback_data="teacher")]]
+    buttons = [[types.InlineKeyboardButton(text="Клиент", callback_data="student")],
+               [types.InlineKeyboardButton(text="Оператор", callback_data="teacher")]]
     # [types.InlineKeyboardButton(text="Родитель", callback_data="parent")]]
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=buttons)
     return keyboard
 
 
 def keyboard_main_student():
-    buttons = [[types.InlineKeyboardButton(text="Отослать на печать/резку", callback_data="send_piece")]]
+    buttons = [[types.InlineKeyboardButton(text="Загрузить на печать/резку", callback_data="send_piece")],
+               [types.InlineKeyboardButton(text="Очередь заданий", callback_data="student_requests")]]
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=buttons)
     return keyboard
 
@@ -19,7 +20,8 @@ def keyboard_urgency_student():
     buttons = [[types.InlineKeyboardButton(text="Высокая", callback_data="high")],
                [types.InlineKeyboardButton(text="Средняя", callback_data="medium")],
                [types.InlineKeyboardButton(text="Низкая", callback_data="low")],
-               [types.InlineKeyboardButton(text="Назад", callback_data="back_to_main_student")]]
+               # [types.InlineKeyboardButton(text="Назад", callback_data="back_to_main_student")]]
+               ]
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=buttons)
     return keyboard
 
@@ -43,5 +45,11 @@ def keyboard_teacher_actions():
     buttons = [[types.InlineKeyboardButton(text="Принять на печать/резку", callback_data="accept")],
                [types.InlineKeyboardButton(text="Закончить печать/резку", callback_data="end")],
                [types.InlineKeyboardButton(text="Назад", callback_data="back_to_queue")], ]
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=buttons)
+    return keyboard
+
+
+def keyboard_back_to_main_student():
+    buttons = [[types.InlineKeyboardButton(text="Назад", callback_data="back_to_main_student")]]
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=buttons)
     return keyboard

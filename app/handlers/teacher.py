@@ -65,13 +65,14 @@ def generate_message_to_send(students_messages) -> str:
     cidt_name_map = create_idt_name_map()
 
     message_to_send = [
-        (f"<b>ID</b>: {students_messages[i][0]}\n<b>Имя</b>: {cidt_name_map[students_messages[i][1]][0]} "
+        (f"<b>ID</b>: {students_messages[i][0]}\n"
+         f"<b>Имя</b>: {cidt_name_map[students_messages[i][1]][0]} "
          f"{cidt_name_map[students_messages[i][1]][1]}\n"
          f"<b>Тип</b>: {students_messages[i][3]}\n"
          f"<b>Срочность</b>: {urgency_int_to_str(students_messages[i][2])}\n"
          f"<b>Статус</b>: {status_int_to_str(students_messages[i][4])}\n---\n") for i in range(len(students_messages))]
 
-    s = ''
+    s = 'Напишите ID запроса, чтобы увидеть подробную информацию\n---\n'
     if len(message_to_send) == 0:
         s += "Очередь пуста и запросов нет!"
     else:
@@ -82,7 +83,7 @@ def generate_message_to_send(students_messages) -> str:
 
 @router.message(Command("cancel"))
 async def cancel(message: types.Message, state: FSMContext):
-    await message.answer("Всё отменили, рабочих отослали.\nВыбирай, <b>Преподаватель!</b>", reply_markup=keyboards.keyboard_main_teacher(),
+    await message.answer("Процесс загрузки прерван.\nВыбирай, <b>Преподаватель!</b>", reply_markup=keyboards.keyboard_main_teacher(),
                                      parse_mode=ParseMode.HTML)
 
     await state.clear()
@@ -181,7 +182,7 @@ async def waiting_id(message: types.Message, state: FSMContext, bot: Bot) -> obj
                                f"{cidt_name_map[messages_students[i][1]][1]}\n"
                                f"<b>Срочность</b>: {urgency_int_to_str(messages_students[i][2])}\n"
                                f"<b>Тип</b>: {messages_students[i][3]}\n"
-                               f"<b>Время</b>: {messages_students[i][5]}\n"
+                               f"<b>Дата отправки</b>: {messages_students[i][5]}\n"
                                f"<b>Комментарий</b>: {messages_students[i][6]}\n")
             await state.update_data(id=messages_students[i][0], idt=messages_students[i][1])
             break
@@ -213,7 +214,7 @@ async def take_on_work(callback: types.CallbackQuery, bot: Bot, state: FSMContex
 
         logger.success("File was take on work")
         await bot.send_message(data['idt'], f"Ваша деталь с ID {data['id']} принята на печать/резку")
-        await callback.answer("Принято на работу", reply_markup=keyboards.keyboard_main_teacher())
+        await callback.answer("Принято в работу", reply_markup=keyboards.keyboard_main_teacher())
     else:
         logger.error("File was already taken on work")
         await callback.answer("Уже в работе", reply_markup=keyboards.keyboard_main_teacher())
@@ -229,10 +230,11 @@ async def finish_work(callback: types.CallbackQuery, state: FSMContext):
     is_proceed = [x[0] for x in
                     cursor.execute(f"SELECT proceeed FROM requests_queue WHERE id={data['id']}").fetchall()][0]
     if is_proceed == 0:
-        await callback.answer("Работа еще не была принята на работу!")
+        await callback.answer("Запрос еще не был принят в работу!")
     if is_proceed == 1:
         await callback.message.delete()
-        msg = await callback.message.answer("Пришлите фотографию отчет печати/резки", parse_mode=ParseMode.HTML)
+        msg = await callback.message.answer("Пришлите <b>фотографию-отчет</b> результата печати/резки",
+                                            parse_mode=ParseMode.HTML)
 
         await state.set_state(CheckMessage.waiting_photo_report)
         await callback.answer()
@@ -285,7 +287,7 @@ async def finish_work_report(message: types.Message, bot: Bot, state: FSMContext
     except OSError as e:
         logger.error(f"Occurred {e}")
 
-    await message.answer("Деталь была отправлена <b>ученику</b>.\nЗапрос больше <b>не будет</b> отображаться в очереди",
+    await message.answer("Фотография была отправлена <b>ученику</b>.\nЗапрос больше <b>не будет</b> отображаться в очереди",
                          parse_mode=ParseMode.HTML, reply_markup=keyboards.keyboard_main_teacher())
 
     await state.clear()

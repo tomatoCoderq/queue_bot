@@ -31,8 +31,6 @@ class IsStudent(BaseFilter):
         return role == "student"
 
 
-
-
 async def download_file(message: types.Message, bot: Bot) -> None:
     # Check whether path exists. Otherwise, create new
     if not os.path.exists(f"students_files/{message.from_user.id}"):
@@ -54,15 +52,16 @@ async def download_file(message: types.Message, bot: Bot) -> None:
 
 @router.message(Command("cancel"), IsStudent())
 async def cancel(message: types.Message, state: FSMContext):
-    await message.answer("Всё отменили, рабочих отослали.\nВыбирай, <b>Ученик!</b>", reply_markup=keyboards.keyboard_main_student(),
-                                     parse_mode=ParseMode.HTML)
+    await message.answer("Процесс загрузки прерван.\nВыбирайте, <b>Клиент!</b>",
+                         reply_markup=keyboards.keyboard_main_student(),
+                         parse_mode=ParseMode.HTML)
 
     await state.clear()
 
 
 @router.callback_query(StateFilter(None), F.data == "send_piece")
 async def send_piece(callback: types.CallbackQuery, state: FSMContext) -> None:
-    await callback.message.edit_text("Выбери <b>приоритет</b> задачи: ",
+    await callback.message.edit_text("Выберите <b>приоритет</b> задания: ",
                                      reply_markup=keyboards.keyboard_urgency_student(),
                                      parse_mode=ParseMode.HTML)
     await state.set_state(SendPiece.waiting_urgency)
@@ -82,8 +81,16 @@ async def get_urgency(callback: types.CallbackQuery, state: FSMContext) -> None:
     await state.set_state(SendPiece.waiting_comments)
     logger.info(f"{callback.message.from_user.username} sets state SendPiece.waiting_comments")
 
-    await callback.message.edit_text("Пришлите текст", parse_mode=ParseMode.HTML)
+    await callback.message.edit_text(
+        "<b>Приоритет выбран!</b> Добавьте <i>описание</i> для детали: пожелания, уточнения и тд.\n"
+        "Если таковых нет, пришлите прочерк",
+        parse_mode=ParseMode.HTML)
 
+
+@router.callback_query(F.data.in_({"high", "medium", "low"}))
+async def get_urgency_while_canceled(callback: types.CallbackQuery, state: FSMContext) -> None:
+    await callback.answer("Отправка задания была прервана. Начните новую отправку!")
+    await callback.answer()
 
 @router.message(SendPiece.waiting_comments, F.text)
 async def get_comments(message: types.Message, state: FSMContext, bot: Bot) -> None:
@@ -93,8 +100,8 @@ async def get_comments(message: types.Message, state: FSMContext, bot: Bot) -> N
     await state.update_data(text=message.text)
     logger.info(f"Updated data. Urgency is {message.text}")
 
-    await message.reply("Пришли файл для печати/резки\n<b>Внимание!</b> "
-                        "Обрабатываются файлы только с расширением .stl или .dfx", parse_mode=ParseMode.HTML)
+    await message.reply("<b>Описание принято!</b> Пришлите файл для печати/резки\n<b>Внимание!</b> "
+                        "Обрабатываются файлы <i>только</i> с расширением .stl или .dxf", parse_mode=ParseMode.HTML)
 
 
 @router.message(SendPiece.waiting_file, F.document)
@@ -102,9 +109,9 @@ async def get_file_and_insert(message: types.Message, state: FSMContext, bot: Bo
     file_type = message.document.file_name[-3:]
 
     # Check whether type of file is correct
-    if file_type.lower() != "stl" and file_type.lower() != "dfx":
+    if file_type.lower() != "stl" and file_type.lower() != "dxf":
         logger.error(f"Wrong file type {file_type}")
-        await message.reply("Неверный тип", parse_mode=ParseMode.HTML)
+        await message.reply("<b>Неверное расширение файла!<b> Пришлите файл ещё раз", parse_mode=ParseMode.HTML)
         return get_urgency
 
     data = await state.get_data()
@@ -122,9 +129,11 @@ async def get_file_and_insert(message: types.Message, state: FSMContext, bot: Bo
         "SELECT id FROM requests_queue WHERE proceeed=0 OR proceeed=1 order by urgency").fetchall()][-1]
 
     await download_file(message, bot)
-    await message.reply(f"<b>Запрос с ID {request_id} отправлен в очередь</b>! Когда преподаватель возьмет его "
-                        "на печать/резку, тебе отправят сообщение :0",
-                        reply_markup=keyboards.keyboard_main_student(), parse_mode=ParseMode.HTML)
+    await message.reply(f"<b>Запрос с ID {request_id} отправлен в очередь</b>! Когда оператор возьмет его "
+                        "на печать/резку, вам отправят сообщение :)",
+                        parse_mode=ParseMode.HTML)
+    await message.answer("Выбирайте, <b>Клиент!</b>",
+                         reply_markup=keyboards.keyboard_main_student(), parse_mode=ParseMode.HTML)
 
     await state.clear()
     logger.info("SendPiece FSM was cleared")
@@ -132,8 +141,6 @@ async def get_file_and_insert(message: types.Message, state: FSMContext, bot: Bo
 
 @router.callback_query(SendPiece.waiting_urgency, F.data == "back_to_main_student")
 async def back(callback: types.callback_query, state: FSMContext):
-    await callback.message.edit_text("Выбирай, <b>Ученик!</b>", reply_markup=keyboards.keyboard_main_student(),
+    await callback.message.edit_text("Выбирайте, <b>Клиент!</b>", reply_markup=keyboards.keyboard_main_student(),
                                      parse_mode=ParseMode.HTML)
     await state.clear()
-
-

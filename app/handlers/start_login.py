@@ -32,14 +32,14 @@ async def start_logging(message: types.Message, bot: Bot):
     # Registration of student
     if message.from_user.id in ids:
         if ids_roles_dict[message.from_user.id] == "student":
-            await bot.send_message(chat_id=message.from_user.id, text="С возвращением, <b>Ученик!</b>",
+            await bot.send_message(chat_id=message.from_user.id, text="С возвращением, <b>Клиент!</b>",
                                    reply_markup=keyboards.keyboard_main_student(), parse_mode=ParseMode.HTML)
             logger.info(f"{message.from_user.username} signed in as student")
 
         if ids_roles_dict[message.from_user.id] == "teacher":
-            await bot.send_message(chat_id=message.from_user.id, text="С возвращением, <b>Преподаватель!</b>",
+            await bot.send_message(chat_id=message.from_user.id, text="С возвращением, <b>Оператор!</b>",
                                    reply_markup=keyboards.keyboard_main_teacher(), parse_mode=ParseMode.HTML)
-            logger.info(f"{message.from_user.username} signed in as TEACHER")
+            logger.info(f"{message.from_user.username} signed in as teacher")
 
         # if dict[message.from_user.id] == "parent":
         #     await bot.send_message(chat_id=message.from_user.id, text="С возвращением, <b>Родитель</b>",

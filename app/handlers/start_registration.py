@@ -16,7 +16,6 @@ from dotenv import load_dotenv
 
 conn = sqlite3.connect("database/db.db")
 cursor = conn.cursor()
-logger.info("connected to db.db in start.py")
 
 router = Router()
 dp = Dispatcher()
@@ -42,7 +41,7 @@ async def start_signup(message: types.Message, bot: Bot):
     # Registration of student
     if message.from_user.id not in ids:
         await message.answer(text="Привет! Это <b>DigitalQueue</b> бот для создания удобной цифровой очереди. "
-                                  "\n<i>Выбери свою роль:</i>",
+                                  "\n<i>Выберите одну из доступных ролей:</i>",
                              parse_mode=ParseMode.HTML, reply_markup=keyboards.keyboard_start_registration())
 
 
@@ -61,13 +60,13 @@ async def add_teacher(callback: types.CallbackQuery):
         conn.commit()
         logger.success(f"Added {callback.from_user.username} to database Users as <b>teacher</b>")
 
-        await callback.message.edit_text("Теперь ты Преподаватель! Чтобы получить больше информации напиши /help",
+        await callback.message.edit_text("<b>Выбрана роль Оператора!</b> Чтобы получить больше информации напишите /help",
                                          reply_markup=keyboards.keyboard_main_teacher(), parse_mode=ParseMode.HTML)
         await callback.answer("Успешная регистрация")
 
     else:
         logger.error(f"User {callback.from_user.username} tried to sign up as teacher")
-        await callback.answer("Ты не преподаватель! Выбери другую роль")
+        await callback.answer("Вы не можете выбрать роль Оператора! Выберите другую роль")
         # await callback.message.edit_text("Ты не преподаватель! Выбери другую роль",
         #                                  reply_markup=keyboards.keyboard_start_registration(),
         #                                  parse_mode=ParseMode.HTML)
@@ -76,7 +75,7 @@ async def add_teacher(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "student")
 async def requesting_data_student(callback: types.CallbackQuery, state: FSMContext):
-    await callback.message.edit_text("Напиши Имя и Фамилию:\n"
+    await callback.message.edit_text("Напишите Имя и Фамилию:\n"
                                      "<i>Например: Иван Иванов</i>", parse_mode=ParseMode.HTML)
     await callback.answer()
 
@@ -102,7 +101,7 @@ async def add_students_parents(message: types.Message, state: FSMContext):
 
         conn.commit()
 
-        await message.reply("Теперь ты Ученик! Чтобы получить больше информации напиши /help ",
+        await message.reply("<b>Выбрана роль Клиента!</b> Чтобы получить больше информации напишите /help ",
                             reply_markup=keyboards.keyboard_main_student(), parse_mode=ParseMode.HTML)
 
     await state.clear()

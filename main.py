@@ -10,6 +10,7 @@ from app.handlers import start_registration
 from app.handlers import student
 from app.handlers import teacher
 from app.handlers import test_handlers
+from app.handlers import student_queue
 from dotenv import load_dotenv
 
 
@@ -41,6 +42,7 @@ async def main():
     dp.include_router(teacher.router)
     dp.include_router(start_registration.router)
     dp.include_router(start_login.router)
+    dp.include_router(student_queue.router)
 
 
     # Dispatchers from all handlers

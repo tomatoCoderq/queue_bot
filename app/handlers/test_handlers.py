@@ -69,16 +69,13 @@ async def help(message: types.Message):
 
 
 async def delete(message: types.Message):
-    # cursor.execute(f"DELETE FROM users WHERE idt={message.from_user.id}")
-    # cursor.execute(f"DELETE FROM students")
-    # cursor.execute(f"DELETE FROM parents")
-    # conn.commit()
-    # logger.success(f"Deleted {message.from_user.username} from database")
-    sent_message = await message.answer("Welcome! Use /next to continue.")
-
-    await message.delete()
+    username = message.text.split()
+    if len(username) != 1:
+        cursor.execute(f"-- DELETE FROM users WHERE user={username[1]}")
+        logger.success(f"{message.from_user.username} deleted admin {username[1]}")
 
 
 def register_test_handler(dp: Dispatcher):
     dp.message.register(help, Command("help"))
+    dp.message.register(delete, Command("deleteadmin"))
     # dp.message.register(help, Command("cancel"))
