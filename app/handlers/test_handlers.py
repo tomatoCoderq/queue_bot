@@ -1,16 +1,15 @@
-import sqlite3
 from aiogram.filters import Command
 
 from aiogram import Bot, types, Dispatcher, Router
 from loguru import logger
-import os
-from dotenv import load_dotenv
 
+from app.utilits.database import database
+from app.utilits.filters import IsTeacher
 # from start_registration import teachers
 
-conn = sqlite3.connect("database/db.db")
-cursor = conn.cursor()
-logger.info("connected to db.db in start.py")
+# conn = sqlite3.connect("database/db.db")
+# cursor = conn.cursor()
+# logger.info("connected to db.db in start.py")
 
 router = Router()
 dp = Dispatcher()
@@ -68,14 +67,40 @@ async def help(message: types.Message):
                          "если совсем ничего не работает писать @tomatocoder")
 
 
-async def delete(message: types.Message):
+@router.message(Command("delete_teacher"), IsTeacher())
+async def delete(message: types.Message, bot: Bot):
     username = message.text.split()
+
     if len(username) != 1:
-        cursor.execute(f"-- DELETE FROM users WHERE user={username[1]}")
-        logger.success(f"{message.from_user.username} deleted admin {username[1]}")
+        user = username[1]
+
+        database.execute(f"DELETE FROM users WHERE user=?", (user, ))
+
+        await message.answer(f"{user} удален!")
+
+        logger.success(f"{message.from_user.username} deleted admin {user}")
+
+
+@router.message(Command("delete_student"), IsTeacher())
+async def delete(message: types.Message, bot: Bot):
+    username = message.text.split()
+
+    if len(username) != 1:
+        user = username[1]
+        print(user)
+        idt = database.fetchall(f"SELECT idt from users where user=?", (user, ))
+        print(idt)
+
+        database.execute(f"DELETE FROM users WHERE user=?", (user, ))
+        database.execute(f"DELETE FROM students WHERE idt=?", (idt[0],))
+        database.execute(f"DELETE FROM requests_queue WHERE idt=?", (idt[0],))
+
+        await message.answer(f"{user} удален!")
+
+        logger.success(f"{message.from_user.username} deleted admin {user}")
 
 
 def register_test_handler(dp: Dispatcher):
     dp.message.register(help, Command("help"))
-    dp.message.register(delete, Command("deleteadmin"))
+    # dp.message.register(delete, Command("deleteadmin"))
     # dp.message.register(help, Command("cancel"))

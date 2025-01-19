@@ -1,6 +1,4 @@
-import sqlite3
 from datetime import datetime
-from pyexpat.errors import messages
 
 import aiogram.exceptions
 from aiogram.enums import ParseMode
@@ -10,17 +8,19 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram import F
 from aiogram.filters import Command
+from aiohttp.http import RESPONSES
 
-from utilits import keyboards
+from app.utilits import keyboards
 
 from aiogram import Bot, types, Router
 from loguru import logger
-from typing import Dict
 import os
 
+from app.utilits.database import database
+from app.utilits.keyboards import CallbackDataKeys
+from app.utilits.messages import TeacherMessages
+
 router = Router()
-conn = sqlite3.connect("database/db.db")
-cursor = conn.cursor()
 
 
 class MessageState(StatesGroup):
@@ -35,12 +35,12 @@ class CheckMessage(StatesGroup):
 
 
 def create_idt_name_map() -> map:
-    cursor.execute("""
-    SELECT requests_queue.idt, students.name, students.surname FROM requests_queue INNER JOIN students 
+    database.execute("""
+    SELECT requests_queue.idt, students.name, students.surname FROM requests_queue INNER JOIN students
     ON requests_queue.idt = students.idt
     """)
 
-    idt_name_map = {row[0]: (row[1], row[2]) for row in cursor.fetchall()}
+    idt_name_map = {row[0]: (row[1], row[2]) for row in database.cursor.fetchall()}
 
     return idt_name_map
 
@@ -64,7 +64,7 @@ def status_int_to_str(status: int) -> str:
 def generate_message_to_send(students_messages) -> str:
     cidt_name_map = create_idt_name_map()
 
-    message_to_send = [
+    response = [
         (f"<b>ID</b>: {students_messages[i][0]}\n"
          f"<b>Имя</b>: {cidt_name_map[students_messages[i][1]][0]} "
          f"{cidt_name_map[students_messages[i][1]][1]}\n"
@@ -72,19 +72,19 @@ def generate_message_to_send(students_messages) -> str:
          f"<b>Срочность</b>: {urgency_int_to_str(students_messages[i][2])}\n"
          f"<b>Статус</b>: {status_int_to_str(students_messages[i][4])}\n---\n") for i in range(len(students_messages))]
 
-    s = 'Напишите ID запроса, чтобы увидеть подробную информацию\n---\n'
-    if len(message_to_send) == 0:
-        s += "Очередь пуста и запросов нет!"
+    message_to_send = TeacherMessages.SELECT_REQUEST
+    if len(response) == 0:
+        message_to_send += TeacherMessages.NO_REQUESTS
     else:
-        for a in message_to_send:
-            s += a
-    return s
+        for a in response:
+            message_to_send += a
+    return message_to_send
 
 
 @router.message(Command("cancel"))
 async def cancel(message: types.Message, state: FSMContext):
-    await message.answer("Процесс загрузки прерван.\nВыбирай, <b>Преподаватель!</b>", reply_markup=keyboards.keyboard_main_teacher(),
-                                     parse_mode=ParseMode.HTML)
+    await message.answer(TeacherMessages.CANCEL_PROCESS, reply_markup=keyboards.keyboard_main_teacher(),
+                         parse_mode=ParseMode.HTML)
 
     await state.clear()
 
@@ -93,16 +93,17 @@ async def cancel(message: types.Message, state: FSMContext):
 async def sort(callback: types.CallbackQuery, state: FSMContext) -> None:
     students_messages = []
     if callback.data == "sort_urgency":
-        students_messages = [x for x in cursor.execute(
-            "SELECT * FROM requests_queue WHERE proceeed=0 OR proceeed=1 order by urgency").fetchall()]
+        students_messages = database.fetchall_multiple("SELECT * FROM requests_queue "
+                                                        "WHERE proceeed=0 OR proceeed=1 order by urgency")
     if callback.data == "sort_date":
-        students_messages = [x for x in cursor.execute(
-            "SELECT * FROM requests_queue WHERE proceeed=0 OR proceeed=1 ORDER BY time").fetchall()]
+        students_messages = database.fetchall_multiple("SELECT * FROM requests_queue "
+                                                       "WHERE proceeed=0 OR proceeed=1 ORDER BY time")
     if callback.data == "sort_type":
-        students_messages = [x for x in cursor.execute(
-            "SELECT * FROM requests_queue WHERE proceeed=0 OR proceeed=1 ORDER BY type").fetchall()]
+        students_messages = database.fetchall_multiple("SELECT * FROM requests_queue "
+                                                       "WHERE proceeed=0 OR proceeed=1 ORDER BY type")
 
     s = generate_message_to_send(students_messages)
+
     try:
         await callback.message.edit_text(s, reply_markup=keyboards.keyboard_sort_teacher(), parse_mode=ParseMode.HTML)
     except TelegramBadRequest as e:
@@ -117,8 +118,7 @@ async def sort(callback: types.CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data.in_({"back_to_queue", "check"}))
 async def check_messages(callback: types.CallbackQuery, state: FSMContext, bot: Bot) -> None:
-    students_messages = [x for x in
-                         cursor.execute("SELECT * FROM requests_queue WHERE proceeed=0 OR proceeed=1").fetchall()]
+    students_messages = database.fetchall_multiple("SELECT * FROM requests_queue WHERE proceeed=0 OR proceeed=1")
 
     s = generate_message_to_send(students_messages)
     data = await state.get_data()
@@ -147,15 +147,12 @@ async def check_messages(callback: types.CallbackQuery, state: FSMContext, bot: 
 @router.message(CheckMessage.waiting_id, F.text)
 async def waiting_id(message: types.Message, state: FSMContext, bot: Bot) -> object:
     # Fix taking all data and putting info whether it was taken or not
-    messages_ids = [x[0] for x in
-                    cursor.execute("SELECT id FROM requests_queue WHERE proceeed=0 or proceeed=1").fetchall()]
-    messages_students = [x for x in
-                         cursor.execute("SELECT * FROM requests_queue WHERE proceeed=0 or proceeed=1").fetchall()]
-    students_ids = [x[0] for x in
-                    cursor.execute("SELECT idt FROM requests_queue WHERE proceeed=0 or proceeed=1").fetchall()]
+    messages_students = database.fetchall_multiple("SELECT * FROM requests_queue WHERE proceeed=0 OR proceeed=1")
+    messages_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0 or proceeed=1")
+    students_ids = database.fetchall("SELECT idt FROM requests_queue WHERE proceeed=0 or proceeed=1")
 
     if not message.text.isdigit() or int(message.text) not in messages_ids:
-        await message.reply("Такого ID <b>нет</b> в списке!. Попробуйте еще раз", parse_mode=ParseMode.HTML)
+        await message.reply(TeacherMessages.NO_ID_FOUND, parse_mode=ParseMode.HTML)
         logger.error(f"Wrong id was written by {message.from_user.username}")
         return check_messages
 
@@ -167,7 +164,8 @@ async def waiting_id(message: types.Message, state: FSMContext, bot: Bot) -> obj
     try:
         await bot.delete_message(message.from_user.id, data['msg'])
         await message.delete()
-    except aiogram.exceptions.TelegramBadRequest as e:
+    except (aiogram.exceptions.TelegramBadRequest, KeyError) as e:
+        await message.answer(TeacherMessages.ID_ERROR)
         logger.error(f"Occurred {e}")
     logger.info(f"Deleting message from user and previous message with id {data['msg']}")
 
@@ -202,38 +200,35 @@ async def waiting_id(message: types.Message, state: FSMContext, bot: Bot) -> obj
     logger.info(f"{message.from_user.username} updates state data msg={msg.message_id}")
 
 
-@router.callback_query(CheckMessage.waiting_action, F.data == "accept")
+@router.callback_query(CheckMessage.waiting_action, F.data == CallbackDataKeys.accept_task)
 async def take_on_work(callback: types.CallbackQuery, bot: Bot, state: FSMContext) -> object:
     data = await state.get_data()
-
-    messages_ids = [x[0] for x in cursor.execute("SELECT id FROM requests_queue WHERE proceeed=0").fetchall()]
+    messages_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0")
 
     if data['id'] in messages_ids:
-        cursor.execute(f"UPDATE requests_queue SET proceeed=1 WHERE id={data['id']}")
-        conn.commit()
+        database.execute(f"UPDATE requests_queue SET proceeed=1 WHERE id=?", (data['id'],))
 
-        logger.success("File was take on work")
-        await bot.send_message(data['idt'], f"Ваша деталь с ID {data['id']} принята на печать/резку")
+        logger.success("File was taken in work")
+        await bot.send_message(data['idt'], TeacherMessages.REQUEST_ACCEPTED.format(id=data['id']))
         await callback.answer("Принято в работу", reply_markup=keyboards.keyboard_main_teacher())
     else:
-        logger.error("File was already taken on work")
-        await callback.answer("Уже в работе", reply_markup=keyboards.keyboard_main_teacher())
+        logger.error("File was already taken in work")
+        await callback.answer(TeacherMessages.REQUEST_ALREADY_IN_WORK, reply_markup=keyboards.keyboard_main_teacher())
         return waiting_id
 
-    # logger.info("CheckMessage FSM was cleared")
 
-
-@router.callback_query(CheckMessage.waiting_action, F.data == "end")
+@router.callback_query(CheckMessage.waiting_action, F.data == CallbackDataKeys.end_task)
 async def finish_work(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
 
-    is_proceed = [x[0] for x in
-                    cursor.execute(f"SELECT proceeed FROM requests_queue WHERE id={data['id']}").fetchall()][0]
+    is_proceed = database.fetchall(f"SELECT proceeed FROM requests_queue WHERE id=?", (data['id'],))[0]
+
     if is_proceed == 0:
-        await callback.answer("Запрос еще не был принят в работу!")
+        await callback.answer(TeacherMessages.REQUEST_NOT_IN_WORK)
+        return waiting_id
     if is_proceed == 1:
         await callback.message.delete()
-        msg = await callback.message.answer("Пришлите <b>фотографию-отчет</b> результата печати/резки",
+        msg = await callback.message.answer(TeacherMessages.SEND_PHOTO_REPORT,
                                             parse_mode=ParseMode.HTML)
 
         await state.set_state(CheckMessage.waiting_photo_report)
@@ -243,11 +238,8 @@ async def finish_work(callback: types.CallbackQuery, state: FSMContext):
 
 
 def delete_file(data) -> None:
-    messages_ids = [x[0] for x in
-                    cursor.execute("SELECT id FROM requests_queue WHERE proceeed=0 or proceeed=1").fetchall()]
-
-    students_ids = [x[0] for x in
-                    cursor.execute("SELECT idt FROM requests_queue WHERE proceeed=0 or proceeed=1").fetchall()]
+    messages_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0 or proceeed=1")
+    students_ids = database.fetchall("SELECT idt FROM requests_queue WHERE proceeed=0 or proceeed=1")
 
     spdict = {messages_ids[i]: students_ids[i] for i in range(len(messages_ids))}
 
@@ -270,8 +262,7 @@ async def finish_work_report(message: types.Message, bot: Bot, state: FSMContext
 
     delete_file(data)
 
-    cursor.execute(f"UPDATE requests_queue SET proceeed=2 WHERE id={data['id']}")
-    conn.commit()
+    database.execute(f"UPDATE requests_queue SET proceeed=2 WHERE id=?", (data['id'],))
 
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -287,7 +278,7 @@ async def finish_work_report(message: types.Message, bot: Bot, state: FSMContext
     except OSError as e:
         logger.error(f"Occurred {e}")
 
-    await message.answer("Фотография была отправлена <b>ученику</b>.\nЗапрос больше <b>не будет</b> отображаться в очереди",
+    await message.answer(TeacherMessages.PHOTO_SENT_TO_STUDENT,
                          parse_mode=ParseMode.HTML, reply_markup=keyboards.keyboard_main_teacher())
 
     await state.clear()
@@ -296,7 +287,7 @@ async def finish_work_report(message: types.Message, bot: Bot, state: FSMContext
 
 @router.callback_query(CheckMessage.waiting_id, F.data == "back_to_main_teacher")
 async def back_to_main_teacher(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
-    await callback.message.edit_text("Выбирайте, Преподаватель", reply_markup=keyboards.keyboard_main_teacher())
+    await callback.message.edit_text(TeacherMessages.CHOOSE_MAIN_TEACHER, reply_markup=keyboards.keyboard_main_teacher())
 
     data = await state.get_data()
     print(data)

@@ -1,21 +1,20 @@
-import sqlite3
-
 from aiogram.enums import ParseMode
-from aiogram.filters import Command, StateFilter, CommandStart
+from aiogram.filters import Command
 from aiogram import F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
-from utilits import keyboards
+from app.utilits import keyboards
 
 from aiogram import Bot, types, Dispatcher, Router
 from loguru import logger
 from aiogram.filters import BaseFilter
 import os
 from dotenv import load_dotenv
-
-conn = sqlite3.connect("database/db.db")
-cursor = conn.cursor()
+from app.utilits.keyboards import CallbackDataKeys
+from app.utilits.database import database
+from app.utilits.filters import IsNotRegistered
+from app.utilits.messages import RegistrationMessages
 
 router = Router()
 dp = Dispatcher()
@@ -25,27 +24,21 @@ class RegistrationState(StatesGroup):
     waiting_data = State()
 
 
-class IsNotRegistered(BaseFilter):
-    async def __call__(self, message: types.Message):
-        ids = [x[0] for x in cursor.execute("SELECT idt FROM users").fetchall()]
-        print(message.from_user.id, ids)
-        return message.from_user.id not in ids
-
-
 @router.message(Command('start'), IsNotRegistered())
 async def start_signup(message: types.Message, bot: Bot):
     logger.info(f"{message.from_user.username} started process of signing up")
 
-    ids = [x[0] for x in cursor.execute("SELECT idt FROM users").fetchall()]
+    ids = database.fetchall("SELECT idt FROM users")
 
-    # Registration of student
     if message.from_user.id not in ids:
-        await message.answer(text="Привет! Это <b>DigitalQueue</b> бот для создания удобной цифровой очереди. "
-                                  "\n<i>Выберите одну из доступных ролей:</i>",
-                             parse_mode=ParseMode.HTML, reply_markup=keyboards.keyboard_start_registration())
+        await message.answer(
+            text=RegistrationMessages.welcome_message,
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboards.keyboard_start_registration(),
+        )
 
 
-@dp.callback_query(F.data == "teacher")
+@dp.callback_query(F.data == CallbackDataKeys.start_registration_operator)
 async def add_teacher(callback: types.CallbackQuery):
     logger.info(f"{callback.message.from_user.username} has chosen role teacher")
 
@@ -55,28 +48,26 @@ async def add_teacher(callback: types.CallbackQuery):
     teachers = [alias for alias in os.getenv("TEACHER_IDS", "").split(",")]
 
     if callback.from_user.username in teachers:
-        # TODO: Write try catch
-        cursor.execute("INSERT INTO users VALUES (?, ?, ?)", to_add)
-        conn.commit()
+        database.execute("INSERT INTO users VALUES (?, ?, ?)", to_add)
         logger.success(f"Added {callback.from_user.username} to database Users as <b>teacher</b>")
 
-        await callback.message.edit_text("<b>Выбрана роль Оператора!</b> Чтобы получить больше информации напишите /help",
-                                         reply_markup=keyboards.keyboard_main_teacher(), parse_mode=ParseMode.HTML)
+        await callback.message.edit_text(
+            RegistrationMessages.teacher_role_chosen,
+            reply_markup=keyboards.keyboard_main_teacher(),
+            parse_mode=ParseMode.HTML,
+        )
         await callback.answer("Успешная регистрация")
 
     else:
         logger.error(f"User {callback.from_user.username} tried to sign up as teacher")
-        await callback.answer("Вы не можете выбрать роль Оператора! Выберите другую роль")
-        # await callback.message.edit_text("Ты не преподаватель! Выбери другую роль",
-        #                                  reply_markup=keyboards.keyboard_start_registration(),
-        #                                  parse_mode=ParseMode.HTML)
+        await callback.answer(RegistrationMessages.teacher_registration_failed)
 
 
-
-@router.callback_query(F.data == "student")
+@router.callback_query(F.data == CallbackDataKeys.start_registration_client)
 async def requesting_data_student(callback: types.CallbackQuery, state: FSMContext):
-    await callback.message.edit_text("Напишите Имя и Фамилию:\n"
-                                     "<i>Например: Иван Иванов</i>", parse_mode=ParseMode.HTML)
+    await callback.message.edit_text(
+        RegistrationMessages.student_provide_name, parse_mode=ParseMode.HTML
+    )
     await callback.answer()
 
     await state.update_data(waiting_data="student")
@@ -93,19 +84,20 @@ async def add_students_parents(message: types.Message, state: FSMContext):
     if data['waiting_data'] == "student":
         to_add_students = [message.from_user.id, name, surname]
 
-        cursor.execute("INSERT INTO users VALUES (?, ?, ?)", to_add_users)
+        database.execute("INSERT INTO users VALUES (?, ?, ?)", to_add_users)
         logger.success(f"Added {message.from_user.username} to database Users as student")
 
-        cursor.execute("INSERT INTO students VALUES (?, ?, ?)", to_add_students)
+        database.execute("INSERT INTO students VALUES (?, ?, ?)", to_add_students)
         logger.success(f"Added {message.from_user.username} to database Students as {name} {surname}")
 
-        conn.commit()
-
-        await message.reply("<b>Выбрана роль Клиента!</b> Чтобы получить больше информации напишите /help ",
-                            reply_markup=keyboards.keyboard_main_student(), parse_mode=ParseMode.HTML)
+        await message.reply(
+            RegistrationMessages.student_role_chosen,
+            reply_markup=keyboards.keyboard_main_student(),
+            parse_mode=ParseMode.HTML,
+        )
 
     await state.clear()
 
 
 def register_start_signup_handler(dp: Dispatcher):
-    dp.callback_query.register(add_teacher, F.data == "teacher")
+    dp.callback_query.register(add_teacher, F.data == CallbackDataKeys.start_registration_operator)
