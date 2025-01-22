@@ -27,6 +27,7 @@ class SendPiece(StatesGroup):
     waiting_urgency = State()
     waiting_file = State()
     waiting_comments = State()
+    waiting_amount = State()
 
 
 async def download_file(message: types.Message, bot: Bot) -> None:
@@ -82,7 +83,7 @@ async def get_urgency(callback: types.CallbackQuery, state: FSMContext, bot: Bot
         await state.update_data(urgency=3)
 
     logger.info(f"Updated data. Urgency is {callback.data}")
-    await state.set_state(SendPiece.waiting_comments)
+    await state.set_state(SendPiece.waiting_amount)
 
     logger.info(f"{callback.message.from_user.username} sets state SendPiece.waiting_comments")
 
@@ -92,6 +93,17 @@ async def get_urgency(callback: types.CallbackQuery, state: FSMContext, bot: Bot
 @router.callback_query(F.data.in_({"high", "medium", "low"}))
 async def get_urgency_while_canceled(callback: types.CallbackQuery, state: FSMContext) -> None:
     await callback.answer(StudentMessages.invalid_priority_cancelled)
+
+
+@router.message(SendPiece.waiting_amount, F.text)
+async def get_amount(message: types.Message, state: FSMContext, bot: Bot) -> object:
+    if not message.text.isdigit():
+        await message.answer(StudentMessages.INVALID_AMOUNT_INPUT)
+        return get_amount
+
+    await message.answer(StudentMessages.AMOUNT_ACCEPTED)
+    await state.set_state(SendPiece.waiting_comments)
+    await state.update_data(amount=message.text)
 
 
 @router.message(SendPiece.waiting_comments, F.text)
@@ -123,13 +135,16 @@ async def get_file_and_insert(message: types.Message, state: FSMContext, bot: Bo
         0,
         datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         data["text"],
+        data['amount'],
+        message.document.file_name[:-4]
     ]
 
-    database.execute("INSERT INTO requests_queue VALUES (NULL, ?, ?, ?, ?, ?, ?)", to_add)
+    database.execute("INSERT INTO requests_queue VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)", to_add)
     logger.success(f"Added request from {message.from_user.username} to requests_queue")
 
     # Get last added ID to send to user
     request_id = database.fetchall("SELECT id FROM requests_queue")[-1]
+
 
     await download_file(message, bot)
 
@@ -154,18 +169,18 @@ async def get_file_and_insert(message: types.Message, state: FSMContext, bot: Bo
 
 
 @router.callback_query(F.data.in_({CallbackDataKeys.confirm_high_urgency, CallbackDataKeys.reject_high_urgency}))
-async def process_high_urgency(callback: types.CallbackQuery, bot: Bot) -> None:
+async def process_high_urgency(callback: types.CallbackQuery) -> None:
     if callback.data == CallbackDataKeys.confirm_high_urgency:
         id_to_change = callback.message.text.split()[1]
 
         database.execute("UPDATE requests_queue SET urgency=? WHERE id=?", (1, id_to_change))
         logger.success("UPDATED urgency=3 after confirm by Operator")
 
-        await callback.answer("Высокий приоритет одобрен!")
+        await callback.answer(StudentMessages.HIGH_URGENCY_ACCEPTED)
         await callback.message.delete()
 
     else:
-        await callback.answer("Высокие приоритет не одобрен!")
+        await callback.answer(StudentMessages.HIGH_URGENCY_REJECTED)
         await callback.message.delete()
 
 

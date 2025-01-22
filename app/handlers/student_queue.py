@@ -25,7 +25,7 @@ def generate_message_to_send(students_messages) -> str:
 @router.callback_query(F.data == "student_requests")
 async def student_requests(callback: types.CallbackQuery):
     students_messages = database.fetchall_multiple(f"SELECT * FROM requests_queue "
-                                                   f"WHERE proceeed!=2 "
+                                                   f"WHERE proceeed!=2 and proceeed!=4 "
                                                    f"AND idt={callback.from_user.id}")
 
     await callback.message.edit_text(generate_message_to_send(students_messages),

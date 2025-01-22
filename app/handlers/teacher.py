@@ -68,9 +68,10 @@ def generate_message_to_send(students_messages) -> str:
         (f"<b>ID</b>: {students_messages[i][0]}\n"
          f"<b>Имя</b>: {cidt_name_map[students_messages[i][1]][0]} "
          f"{cidt_name_map[students_messages[i][1]][1]}\n"
-         f"<b>Тип</b>: {students_messages[i][3]}\n"
+         f"<b>Файл</b>: {students_messages[i][8]}.{students_messages[i][3]}\n"
          f"<b>Срочность</b>: {urgency_int_to_str(students_messages[i][2])}\n"
-         f"<b>Статус</b>: {status_int_to_str(students_messages[i][4])}\n---\n") for i in range(len(students_messages))]
+         f"<b>Статус</b>: {status_int_to_str(students_messages[i][4])}\n"
+         f"<b>Количество</b>: {students_messages[i][7]}\n---\n") for i in range(len(students_messages))]
 
     message_to_send = TeacherMessages.SELECT_REQUEST
     if len(response) == 0:
@@ -181,7 +182,8 @@ async def waiting_id(message: types.Message, state: FSMContext, bot: Bot) -> obj
                                f"<b>Срочность</b>: {urgency_int_to_str(messages_students[i][2])}\n"
                                f"<b>Тип</b>: {messages_students[i][3]}\n"
                                f"<b>Дата отправки</b>: {messages_students[i][5]}\n"
-                               f"<b>Комментарий</b>: {messages_students[i][6]}\n")
+                               f"<b>Комментарий</b>: {messages_students[i][6]}\n"
+                               f"<b>Количество</b>: {messages_students[i][7]}\n")
             await state.update_data(id=messages_students[i][0], idt=messages_students[i][1])
             break
 
@@ -217,6 +219,27 @@ async def take_on_work(callback: types.CallbackQuery, bot: Bot, state: FSMContex
         return waiting_id
 
 
+@router.callback_query(CheckMessage.waiting_action, F.data == CallbackDataKeys.reject_task)
+async def reject_task(callback: types.CallbackQuery, bot: Bot, state: FSMContext) -> object:
+    data = await state.get_data()
+    messages_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0")
+
+    if data['id'] in messages_ids:
+        delete_file(data)
+
+        database.execute(f"UPDATE requests_queue SET proceeed=4 WHERE id=?", (data['id'],))
+
+        logger.success("File was rejected")
+        await bot.send_message(data['idt'], TeacherMessages.REQUEST_REJECTED.format(id=data['id']))
+        await callback.answer("Отклонено", reply_markup=keyboards.keyboard_main_teacher())
+        await callback.message.delete()
+        await callback.message.answer(TeacherMessages.CHOOSE_MAIN_TEACHER, reply_markup=keyboards.keyboard_main_teacher())
+    else:
+        logger.error("File was already taken in work")
+        await callback.answer(TeacherMessages.REQUEST_ALREADY_IN_WORK, reply_markup=keyboards.keyboard_main_teacher())
+        return waiting_id
+
+
 @router.callback_query(CheckMessage.waiting_action, F.data == CallbackDataKeys.end_task)
 async def finish_work(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -243,12 +266,13 @@ def delete_file(data) -> None:
 
     spdict = {messages_ids[i]: students_ids[i] for i in range(len(messages_ids))}
 
-    document_name = [entry for entry in os.listdir(f'students_files/{spdict[int(data["id"])]}') if
-                     entry.startswith(str(data['id']))]
-
     try:
+        document_name = [entry for entry in os.listdir(f'students_files/{spdict[int(data["id"])]}') if
+                         entry.startswith(str(data['id']))]
+
         os.remove(f"students_files/{spdict[data['id']]}/{document_name[0]}")
-    except OSError as e:
+        logger.success(f"Deleted file {spdict[data['id']]}/{document_name[0]}")
+    except (OSError, KeyError) as e:
         logger.error(f"Occurred {e}")
 
 
@@ -256,7 +280,7 @@ def delete_file(data) -> None:
 async def finish_work_report(message: types.Message, bot: Bot, state: FSMContext):
     data = await state.get_data()
 
-    print(data['msg'])
+    # print(data['msg'])
     # await message.delete()
     await bot.delete_message(message.from_user.id, int(data['msg']))
 

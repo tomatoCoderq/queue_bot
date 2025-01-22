@@ -26,6 +26,7 @@ class KeyboardTitles:
     confirm_high_urgency = "Подтвердить"
     reject_high_urgency = "Отклонить"
     accept_task = "Принять на печать/резку"
+    reject_task = "Отклонить"
     end_task = "Закончить печать/резку"
     back_to_queue = "Назад"
 
@@ -58,6 +59,7 @@ class CallbackDataKeys:
     confirm_high_urgency = "accept_high_urgency"
     reject_high_urgency = "reject_high_urgency"
     accept_task = "accept"
+    reject_task = "reject"
     end_task = "end"
     back_to_queue = "back_to_queue"
 
@@ -124,6 +126,7 @@ def keyboard_sort_teacher():
 def keyboard_teacher_actions():
     buttons = [
         [types.InlineKeyboardButton(text=KeyboardTitles.accept_task, callback_data=CallbackDataKeys.accept_task)],
+        [types.InlineKeyboardButton(text=KeyboardTitles.reject_task, callback_data=CallbackDataKeys.reject_task)],
         [types.InlineKeyboardButton(text=KeyboardTitles.end_task, callback_data=CallbackDataKeys.end_task)],
         [types.InlineKeyboardButton(text=KeyboardTitles.back_to_queue, callback_data=CallbackDataKeys.back_to_queue)]
     ]
