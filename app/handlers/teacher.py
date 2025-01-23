@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import datetime
 
 import aiogram.exceptions
@@ -62,7 +63,11 @@ def status_int_to_str(status: int) -> str:
 
 
 def generate_message_to_send(students_messages) -> str:
-    cidt_name_map = create_idt_name_map()
+    try:
+        cidt_name_map = create_idt_name_map()
+    except KeyError as e:
+        logger.error(f"Occurred {e}")
+        return "<b>Ошибка!</b>"
 
     response = [
         (f"<b>ID</b>: {students_messages[i][0]}\n"

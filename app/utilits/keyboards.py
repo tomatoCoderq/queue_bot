@@ -1,37 +1,6 @@
 from aiogram import types
-
-
-class KeyboardTitles:
-    # Titles for registration
-    start_registration_client = "Клиент"
-    start_registration_operator = "Оператор"
-
-    # Titles for student main actions
-    upload_task = "Загрузить на печать/резку"
-    task_queue = "Очередь заданий"
-
-    # Titles for urgency levels
-    urgency_high = "Высокий"
-    urgency_medium = "Средний"
-    urgency_low = "Низкий"
-
-    # Titles for teacher actions
-    open_queue = "Открыть очередь"
-    sort_by_type = "Сортировка по типу"
-    sort_by_date = "Сортировка по дате"
-    sort_by_urgency = "Сортировка по срочности"
-    back_to_main_teacher = "Назад"
-
-    # Titles for teacher process actions
-    confirm_high_urgency = "Подтвердить"
-    reject_high_urgency = "Отклонить"
-    accept_task = "Принять на печать/резку"
-    reject_task = "Отклонить"
-    end_task = "Закончить печать/резку"
-    back_to_queue = "Назад"
-
-    # Back to main menu for student
-    back_to_main_student = "Назад"
+from aiogram.utils.keyboard import KeyboardBuilder, ReplyKeyboardBuilder
+from app.utilits.messages import KeyboardTitles
 
 
 class CallbackDataKeys:
@@ -124,9 +93,12 @@ def keyboard_sort_teacher():
 
 
 def keyboard_teacher_actions():
+    # builder = ReplyKeyboardBuilder()
     buttons = [
-        [types.InlineKeyboardButton(text=KeyboardTitles.accept_task, callback_data=CallbackDataKeys.accept_task)],
-        [types.InlineKeyboardButton(text=KeyboardTitles.reject_task, callback_data=CallbackDataKeys.reject_task)],
+        [
+            types.InlineKeyboardButton(text=KeyboardTitles.accept_task, callback_data=CallbackDataKeys.accept_task),
+            types.InlineKeyboardButton(text=KeyboardTitles.reject_task, callback_data=CallbackDataKeys.reject_task)
+        ],
         [types.InlineKeyboardButton(text=KeyboardTitles.end_task, callback_data=CallbackDataKeys.end_task)],
         [types.InlineKeyboardButton(text=KeyboardTitles.back_to_queue, callback_data=CallbackDataKeys.back_to_queue)]
     ]
