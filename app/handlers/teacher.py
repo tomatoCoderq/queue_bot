@@ -99,29 +99,29 @@ async def cancel(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data.in_({"sort_urgency", "sort_date", "sort_type"}))
 async def sort(callback: types.CallbackQuery, state: FSMContext) -> None:
-    students_messages = []
-    if callback.data == "sort_urgency":
-        students_messages = database.fetchall_multiple("SELECT * FROM requests_queue "
-                                                       "WHERE proceeed=0 OR proceeed=1 order by urgency")
-    if callback.data == "sort_date":
-        students_messages = database.fetchall_multiple("SELECT * FROM requests_queue "
-                                                       "WHERE proceeed=0 OR proceeed=1 ORDER BY time")
-    if callback.data == "sort_type":
-        students_messages = database.fetchall_multiple("SELECT * FROM requests_queue "
-                                                       "WHERE proceeed=0 OR proceeed=1 ORDER BY type")
+    # students_messages = []
+    # if callback.data == "sort_urgency":
+    #     students_messages = database.fetchall_multiple("SELECT * FROM requests_queue "
+    #                                                    "WHERE proceeed=0 OR proceeed=1 order by urgency")
+    # if callback.data == "sort_date":
+    #     students_messages = database.fetchall_multiple("SELECT * FROM requests_queue "
+    #                                                    "WHERE proceeed=0 OR proceeed=1 ORDER BY time")
+    # if callback.data == "sort_type":
+    #     students_messages = database.fetchall_multiple("SELECT * FROM requests_queue "
+    #                                                    "WHERE proceeed=0 OR proceeed=1 ORDER BY type")
+    #
+    # s = generate_message_to_send(students_messages)
+    #
+    # try:
+    #     await callback.message.edit_text(s, reply_markup=keyboards.keyboard_sort_teacher(), parse_mode=ParseMode.HTML)
+    # except TelegramBadRequest as e:
+    #     # TODO: Change this handling
+    #     None
+    #
+    # await state.set_state(CheckMessage.waiting_id)
+    # logger.info(f"{callback.message.from_user.username} sets state CheckMessage.waiting_id")
 
-    s = generate_message_to_send(students_messages)
-
-    try:
-        await callback.message.edit_text(s, reply_markup=keyboards.keyboard_sort_teacher(), parse_mode=ParseMode.HTML)
-    except TelegramBadRequest as e:
-        # TODO: Change this handling
-        None
-
-    await state.set_state(CheckMessage.waiting_id)
-    logger.info(f"{callback.message.from_user.username} sets state CheckMessage.waiting_id")
-
-    await callback.answer()
+    await callback.answer("Сортировки временно не работают")
 
 
 @router.callback_query(F.data.in_({"back_to_queue", "check"}))
@@ -130,18 +130,25 @@ async def check_messages(callback: types.CallbackQuery, state: FSMContext, bot: 
 
     s = generate_message_to_send(students_messages)
     data = await state.get_data()
-
-    if callback.data == "check":
-        msg = await callback.message.edit_text(s, reply_markup=keyboards.keyboard_sort_teacher(),
-                                               parse_mode=ParseMode.HTML)
-    else:
-        try:
+    print(f"len{len(s)}")
+    try:
+        if callback.data == "check":
+            if len(s) > 4096:
+                for x in range(0, len(s), 4096):
+                    msg = await callback.message.answer(s[x:x+4096],
+                                                     parse_mode=ParseMode.HTML)
+                msg = await callback.message.answer("Выбирайте:", reply_markup=keyboards.keyboard_sort_teacher())
+            else:
+                msg = await callback.message.edit_text(s, reply_markup=keyboards.keyboard_sort_teacher(),
+                                                       parse_mode=ParseMode.HTML)
+        else:
             # await bot.delete_message(callback.message.from_user.id, data['msg'])
             await callback.message.delete()
-        except aiogram.exceptions.TelegramBadRequest as e:
-            logger.error(f"Occurred {e} with id {data['msg']}")
-        msg = await callback.message.answer(s, reply_markup=keyboards.keyboard_sort_teacher(),
-                                            parse_mode=ParseMode.HTML)
+            msg = await callback.message.answer(s, reply_markup=keyboards.keyboard_sort_teacher(),
+                                                parse_mode=ParseMode.HTML)
+    except aiogram.exceptions.TelegramBadRequest as e:
+        logger.error(f"Occurred {e} with id {data['msg']}")
+
     await state.set_state(CheckMessage.waiting_id)
     logger.info(f"{callback.message.from_user.username} sets state CheckMessage.waiting_id")
 
