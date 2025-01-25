@@ -62,6 +62,20 @@ dp = Dispatcher()
 #
 #
 
+
+
+@router.message(Command("update"), IsTeacher())
+async def update(message:types.Message, bot: Bot):
+    students_ids = database.fetchall("SELECT idt FROM users")
+
+    to_send = "Апдейт! Если что-то не работает, напишите, пожалуйста, @tomatocoder :)\n"
+    for message in message.text.split()[1:]:
+        to_send += message
+
+    for id in students_ids:
+        await bot.send_message(id, to_send)
+
+
 async def help(message: types.Message):
     await message.answer("/cancel для отмены состояний\n/start если ничего не работает\n"
                          "если совсем ничего не работает писать @tomatocoder")

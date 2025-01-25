@@ -19,7 +19,7 @@ import os
 
 from app.utilits.database import database
 from app.utilits.keyboards import CallbackDataKeys
-from app.utilits.messages import TeacherMessages
+from app.utilits.messages import TeacherMessages, StudentMessages
 
 router = Router()
 
@@ -32,7 +32,9 @@ class MessageState(StatesGroup):
 class CheckMessage(StatesGroup):
     waiting_id = State()
     waiting_action = State()
+    waiting_size = State()
     waiting_photo_report = State()
+
 
 
 def create_idt_name_map() -> map:
@@ -189,7 +191,9 @@ async def waiting_id(message: types.Message, state: FSMContext, bot: Bot) -> obj
                                f"<b>Дата отправки</b>: {messages_students[i][5]}\n"
                                f"<b>Комментарий</b>: {messages_students[i][6]}\n"
                                f"<b>Количество</b>: {messages_students[i][7]}\n")
-            await state.update_data(id=messages_students[i][0], idt=messages_students[i][1])
+            await state.update_data(id=messages_students[i][0],
+                                    idt=messages_students[i][1],
+                                    type=messages_students[i][3])
             break
 
     # Find file name with specific ID given by user
@@ -256,13 +260,45 @@ async def finish_work(callback: types.CallbackQuery, state: FSMContext):
         return waiting_id
     if is_proceed == 1:
         await callback.message.delete()
-        msg = await callback.message.answer(TeacherMessages.SEND_PHOTO_REPORT,
-                                            parse_mode=ParseMode.HTML)
-
-        await state.set_state(CheckMessage.waiting_photo_report)
+        if data['type'] == "stl":
+            msg = await callback.message.answer(TeacherMessages.SEND_WEIGHT_REPORT,
+                                                parse_mode=ParseMode.HTML)
+        if data['type'] == "dxf":
+            msg = await callback.message.answer(TeacherMessages.SEND_SIZE_REPORT,
+                                                parse_mode=ParseMode.HTML)
+        await state.set_state(CheckMessage.waiting_size)
         await callback.answer()
         await state.update_data(msg=msg.message_id)
-        logger.info(f"{callback.message.from_user.username} sets state CheckMessage.waiting_photo_report")
+        logger.info(f"{callback.message.from_user.username} sets state CheckMessage.waiting_size")
+
+
+@router.message(CheckMessage.waiting_size, F.text)
+async def finish_work_get_params(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+
+    if data['type'] == "stl" and not message.text.isdigit():
+        await message.answer(StudentMessages.INVALID_AMOUNT_INPUT)
+        return finish_work_get_params
+
+    if data['type'] == "dxf" and len(message.text.split()) != 2:
+        await message.answer(TeacherMessages.INVALID_SIZE_INPUT)
+        return finish_work_get_params
+
+    if not (message.text.split()[0].isdigit() and message.text.split()[1].isdigit()):
+        await message.answer(StudentMessages.INVALID_AMOUNT_INPUT)
+        return finish_work_get_params
+
+    to_set = 0
+    if data['type'] == "stl":
+        to_set = message.text
+    if data['type'] == "dxf":
+        # Calculating area
+        to_set = int(message.text.split()[0]) * int(message.text.split()[1])
+
+    database.execute("UPDATE requests_queue SET params=? WHERE id=?", (to_set, data['id']))
+
+    await message.answer(TeacherMessages.SEND_PHOTO_REPORT)
+    await state.set_state(CheckMessage.waiting_photo_report)
 
 
 def delete_file(data) -> None:

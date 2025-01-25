@@ -136,10 +136,11 @@ async def get_file_and_insert(message: types.Message, state: FSMContext, bot: Bo
         datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         data["text"],
         data['amount'],
-        message.document.file_name[:-4]
+        message.document.file_name[:-4],
+        0
     ]
 
-    database.execute("INSERT INTO requests_queue VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)", to_add)
+    database.execute("INSERT INTO requests_queue VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)", to_add)
     logger.success(f"Added request from {message.from_user.username} to requests_queue")
 
     # Get last added ID to send to user
