@@ -70,7 +70,7 @@ async def update(message:types.Message, bot: Bot):
 
     to_send = "Апдейт! Если что-то не работает, напишите, пожалуйста, @tomatocoder :)\n"
     for message in message.text.split()[1:]:
-        to_send += message
+        to_send += f"{message}\t"
 
     for id in students_ids:
         await bot.send_message(id, to_send)

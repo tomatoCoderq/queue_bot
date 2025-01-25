@@ -92,7 +92,7 @@ def keyboard_sort_teacher():
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def keyboard_teacher_actions():
+def keyboard_teacher_actions_one():
     # builder = ReplyKeyboardBuilder()
     buttons = [
         [
@@ -103,6 +103,20 @@ def keyboard_teacher_actions():
         [types.InlineKeyboardButton(text=KeyboardTitles.back_to_queue, callback_data=CallbackDataKeys.back_to_queue)]
     ]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def keyboard_teacher_actions_two():
+    # builder = ReplyKeyboardBuilder()
+    buttons = [
+        [
+            types.InlineKeyboardButton(text=KeyboardTitles.accept_task_already_accepted, callback_data=CallbackDataKeys.accept_task),
+            types.InlineKeyboardButton(text=KeyboardTitles.reject_task_already_accepted, callback_data=CallbackDataKeys.reject_task)
+        ],
+        [types.InlineKeyboardButton(text=KeyboardTitles.end_task_accepted, callback_data=CallbackDataKeys.end_task)],
+        [types.InlineKeyboardButton(text=KeyboardTitles.back_to_queue, callback_data=CallbackDataKeys.back_to_queue)]
+    ]
+    return types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
 
 
 def keyboard_back_to_main_student():

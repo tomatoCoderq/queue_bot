@@ -16,6 +16,7 @@ from app.utilits import keyboards
 from aiogram import Bot, types, Router
 from loguru import logger
 import os
+import shutil
 
 from app.utilits.database import database
 from app.utilits.keyboards import CallbackDataKeys
@@ -34,7 +35,6 @@ class CheckMessage(StatesGroup):
     waiting_action = State()
     waiting_size = State()
     waiting_photo_report = State()
-
 
 
 def create_idt_name_map() -> map:
@@ -102,7 +102,7 @@ async def sort(callback: types.CallbackQuery, state: FSMContext) -> None:
     students_messages = []
     if callback.data == "sort_urgency":
         students_messages = database.fetchall_multiple("SELECT * FROM requests_queue "
-                                                        "WHERE proceeed=0 OR proceeed=1 order by urgency")
+                                                       "WHERE proceeed=0 OR proceeed=1 order by urgency")
     if callback.data == "sort_date":
         students_messages = database.fetchall_multiple("SELECT * FROM requests_queue "
                                                        "WHERE proceeed=0 OR proceeed=1 ORDER BY time")
@@ -200,9 +200,16 @@ async def waiting_id(message: types.Message, state: FSMContext, bot: Bot) -> obj
     file_name = [entry for entry in os.listdir(f'students_files/{spdict[int(message.text)]}') if
                  entry.startswith(message.text)]
 
-    msg = await message.answer_document(
-        document=types.FSInputFile(f"students_files/{spdict[int(message.text)]}/{file_name[0]}"),
-        caption=message_to_send, reply_markup=keyboards.keyboard_teacher_actions(), parse_mode=ParseMode.HTML)
+    is_proceed = database.fetchall("SELECT proceeed FROM requests_queue WHERE id=?", (message.text,))[0]
+
+    if is_proceed == 0:
+        msg = await message.answer_document(
+            document=types.FSInputFile(f"students_files/{spdict[int(message.text)]}/{file_name[0]}"),
+            caption=message_to_send, reply_markup=keyboards.keyboard_teacher_actions_one(), parse_mode=ParseMode.HTML)
+    if is_proceed == 1:
+        msg = await message.answer_document(
+            document=types.FSInputFile(f"students_files/{spdict[int(message.text)]}/{file_name[0]}"),
+            caption=message_to_send, reply_markup=keyboards.keyboard_teacher_actions_two(), parse_mode=ParseMode.HTML)
 
     await state.set_state(CheckMessage.waiting_action)
     logger.info(f"{message.from_user.username} sets state CheckMessage.waiting_action")
@@ -242,7 +249,8 @@ async def reject_task(callback: types.CallbackQuery, bot: Bot, state: FSMContext
         await bot.send_message(data['idt'], TeacherMessages.REQUEST_REJECTED.format(id=data['id']))
         await callback.answer("Отклонено", reply_markup=keyboards.keyboard_main_teacher())
         await callback.message.delete()
-        await callback.message.answer(TeacherMessages.CHOOSE_MAIN_TEACHER, reply_markup=keyboards.keyboard_main_teacher())
+        await callback.message.answer(TeacherMessages.CHOOSE_MAIN_TEACHER,
+                                      reply_markup=keyboards.keyboard_main_teacher())
     else:
         logger.error("File was already taken in work")
         await callback.answer(TeacherMessages.REQUEST_ALREADY_IN_WORK, reply_markup=keyboards.keyboard_main_teacher())
@@ -317,6 +325,28 @@ def delete_file(data) -> None:
         logger.error(f"Occurred {e}")
 
 
+def move_file(data) -> None:
+    messages_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0 or proceeed=1")
+    students_ids = database.fetchall("SELECT idt FROM requests_queue WHERE proceeed=0 or proceeed=1")
+
+    spdict = {messages_ids[i]: students_ids[i] for i in range(len(messages_ids))}
+
+    try:
+        document_name = [entry for entry in os.listdir(f'students_files/{spdict[int(data["id"])]}') if
+                         entry.startswith(str(data['id']))]
+        if not os.path.exists(f"permanent/{spdict[data['id']]}"):
+            os.makedirs(f"permanent/{spdict[data['id']]}")
+
+        # os.remove(f"students_files/{spdict[data['id']]}/{document_name[0]}")
+        shutil.move(f"students_files/{spdict[data['id']]}/{document_name[0]}",
+                    f"permanent/{spdict[data['id']]}/{document_name[0]}")
+        logger.success(f"Moved file to permanent/{spdict[data['id']]}/{document_name[0]}")
+    except (OSError, KeyError, shutil.Error) as e:
+        logger.error(f"Occurred {e}")
+
+
+# os.replace(f"temporal/{data['idt']}{current_time}.jpg", f"permanent/{data['idt']}{current_time}/.jpg")
+
 @router.message(CheckMessage.waiting_photo_report, F.photo)
 async def finish_work_report(message: types.Message, bot: Bot, state: FSMContext):
     data = await state.get_data()
@@ -325,7 +355,8 @@ async def finish_work_report(message: types.Message, bot: Bot, state: FSMContext
     # await message.delete()
     await bot.delete_message(message.from_user.id, int(data['msg']))
 
-    delete_file(data)
+    # delete_file(data)
+    move_file(data)
 
     database.execute(f"UPDATE requests_queue SET proceeed=2 WHERE id=?", (data['id'],))
 
@@ -352,7 +383,8 @@ async def finish_work_report(message: types.Message, bot: Bot, state: FSMContext
 
 @router.callback_query(CheckMessage.waiting_id, F.data == "back_to_main_teacher")
 async def back_to_main_teacher(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
-    await callback.message.edit_text(TeacherMessages.CHOOSE_MAIN_TEACHER, reply_markup=keyboards.keyboard_main_teacher())
+    await callback.message.edit_text(TeacherMessages.CHOOSE_MAIN_TEACHER,
+                                     reply_markup=keyboards.keyboard_main_teacher())
 
     data = await state.get_data()
     print(data)

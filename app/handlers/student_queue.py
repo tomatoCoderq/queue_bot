@@ -9,6 +9,7 @@ from app.handlers.teacher import status_int_to_str
 from app.utilits.database import database
 from app.utilits.messages import TeacherMessages, StudentMessages
 from loguru import logger
+from app.handlers.teacher import delete_file
 
 
 router = Router()
@@ -49,16 +50,17 @@ async def student_requests(callback: types.CallbackQuery, state: FSMContext):
 
 @router.message(DeleteOwnQueue.get_id_to_delete, F.text)
 async def get_id_to_delete(message: types.Message, state: FSMContext, bot: Bot):
-    messages_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0 or proceeed=1")
+    messages_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0")
     data = await state.get_data()
 
     if not message.text.isdigit() or int(message.text) not in messages_ids:
-        await message.reply(TeacherMessages.NO_ID_FOUND, parse_mode=ParseMode.HTML)
+        await message.reply(StudentMessages.NO_ID_FOUND, parse_mode=ParseMode.HTML)
         logger.error(f"Wrong id was written by {message.from_user.username}")
         return get_id_to_delete
 
     await bot.delete_message(message.chat.id, data['msg_id'])
     # await message.delete()
+    delete_file({"id": int(message.text)})
     database.execute(f"UPDATE requests_queue SET proceeed=2 WHERE id=?", (message.text, ))
     await message.answer(StudentMessages.SUCESSFULLY_DELETED, reply_markup=keyboards.keyboard_main_student())
     await state.clear()
