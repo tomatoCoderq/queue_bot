@@ -19,10 +19,13 @@ class CallbackDataKeys:
 
     # Callback data for teacher actions
     open_queue = "check"
+    history = "history"
+    xlsx = "xlsx"
     sort_by_type = "sort_type"
     sort_by_date = "sort_date"
     sort_by_urgency = "sort_urgency"
     back_to_main_teacher = "back_to_main_teacher"
+    back_to_main_teacher_no_edit = "back_to_main_teacher_no_edit"
 
     # Callback data for teacher process actions
     confirm_high_urgency = "accept_high_urgency"
@@ -75,7 +78,9 @@ def keyboard_urgency_student():
 
 def keyboard_main_teacher():
     buttons = [
-        [types.InlineKeyboardButton(text=KeyboardTitles.open_queue, callback_data=CallbackDataKeys.open_queue)]
+        [types.InlineKeyboardButton(text=KeyboardTitles.open_queue, callback_data=CallbackDataKeys.open_queue)],
+        [types.InlineKeyboardButton(text=KeyboardTitles.history, callback_data=CallbackDataKeys.history)],
+        [types.InlineKeyboardButton(text=KeyboardTitles.get_xlsx, callback_data=CallbackDataKeys.xlsx)]
     ]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -109,8 +114,10 @@ def keyboard_teacher_actions_two():
     # builder = ReplyKeyboardBuilder()
     buttons = [
         [
-            types.InlineKeyboardButton(text=KeyboardTitles.accept_task_already_accepted, callback_data=CallbackDataKeys.accept_task),
-            types.InlineKeyboardButton(text=KeyboardTitles.reject_task_already_accepted, callback_data=CallbackDataKeys.reject_task)
+            types.InlineKeyboardButton(text=KeyboardTitles.accept_task_already_accepted,
+                                       callback_data=CallbackDataKeys.accept_task),
+            types.InlineKeyboardButton(text=KeyboardTitles.reject_task_already_accepted,
+                                       callback_data=CallbackDataKeys.reject_task)
         ],
         [types.InlineKeyboardButton(text=KeyboardTitles.end_task_accepted, callback_data=CallbackDataKeys.end_task)],
         [types.InlineKeyboardButton(text=KeyboardTitles.back_to_queue, callback_data=CallbackDataKeys.back_to_queue)]
@@ -118,10 +125,24 @@ def keyboard_teacher_actions_two():
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-
 def keyboard_back_to_main_student():
     buttons = [
         [types.InlineKeyboardButton(text=KeyboardTitles.back_to_main_student,
                                     callback_data=CallbackDataKeys.back_to_main_student)]
+    ]
+    return types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def keyboard_back_to_main_teacher():
+    buttons = [
+        [types.InlineKeyboardButton(text=KeyboardTitles.back_to_main_teacher,
+                                    callback_data=CallbackDataKeys.back_to_main_teacher)]
+    ]
+    return types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def keyboard_back_to_main_teacher_no_edit():
+    buttons = [
+        [types.InlineKeyboardButton(text=KeyboardTitles.back_to_main_teacher,
+                                    callback_data=CallbackDataKeys.back_to_main_teacher_no_edit)]
     ]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)

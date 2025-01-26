@@ -4,3 +4,4 @@ students_files/*
 database/*
 .venv/
 permanent/*
+data.xlsx

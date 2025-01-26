@@ -1,15 +1,12 @@
-import sqlite3
 from datetime import datetime
 
 import aiogram.exceptions
 from aiogram.enums import ParseMode
-from aiogram.exceptions import TelegramBadRequest
 
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram import F
 from aiogram.filters import Command
-from aiohttp.http import RESPONSES
 
 from app.utilits import keyboards
 
@@ -21,8 +18,9 @@ import shutil
 from app.utilits.database import database
 from app.utilits.keyboards import CallbackDataKeys
 from app.utilits.messages import TeacherMessages, StudentMessages
+from app.utilits.excel_writer import Excel
 
-router = Router()
+teacher_router = Router()
 
 
 class MessageState(StatesGroup):
@@ -64,7 +62,7 @@ def status_int_to_str(status: int) -> str:
         return "В работе"
 
 
-def generate_message_to_send(students_messages) -> str:
+def generate_message_to_send(message, students_messages) -> str:
     try:
         cidt_name_map = create_idt_name_map()
     except KeyError as e:
@@ -80,7 +78,7 @@ def generate_message_to_send(students_messages) -> str:
          f"<b>Статус</b>: {status_int_to_str(students_messages[i][4])}\n"
          f"<b>Количество</b>: {students_messages[i][7]}\n---\n") for i in range(len(students_messages))]
 
-    message_to_send = TeacherMessages.SELECT_REQUEST
+    message_to_send = message
     if len(response) == 0:
         message_to_send += TeacherMessages.NO_REQUESTS
     else:
@@ -89,7 +87,7 @@ def generate_message_to_send(students_messages) -> str:
     return message_to_send
 
 
-@router.message(Command("cancel"))
+@teacher_router.message(Command("cancel"))
 async def cancel(message: types.Message, state: FSMContext):
     await message.answer(TeacherMessages.CANCEL_PROCESS, reply_markup=keyboards.keyboard_main_teacher(),
                          parse_mode=ParseMode.HTML)
@@ -97,7 +95,7 @@ async def cancel(message: types.Message, state: FSMContext):
     await state.clear()
 
 
-@router.callback_query(F.data.in_({"sort_urgency", "sort_date", "sort_type"}))
+@teacher_router.callback_query(F.data.in_({"sort_urgency", "sort_date", "sort_type"}))
 async def sort(callback: types.CallbackQuery, state: FSMContext) -> None:
     # students_messages = []
     # if callback.data == "sort_urgency":
@@ -124,19 +122,20 @@ async def sort(callback: types.CallbackQuery, state: FSMContext) -> None:
     await callback.answer("Сортировки временно не работают")
 
 
-@router.callback_query(F.data.in_({"back_to_queue", "check"}))
+@teacher_router.callback_query(F.data.in_({"back_to_queue", "check"}))
 async def check_messages(callback: types.CallbackQuery, state: FSMContext, bot: Bot) -> None:
     students_messages = database.fetchall_multiple("SELECT * FROM requests_queue WHERE proceeed=0 OR proceeed=1")
 
-    s = generate_message_to_send(students_messages)
+    s = generate_message_to_send(TeacherMessages.SELECT_REQUEST, students_messages)
     data = await state.get_data()
     print(f"len{len(s)}")
     try:
+        # ToDO: Rewrite this division
         if callback.data == "check":
             if len(s) > 4096:
                 for x in range(0, len(s), 4096):
-                    msg = await callback.message.answer(s[x:x+4096],
-                                                     parse_mode=ParseMode.HTML)
+                    msg = await callback.message.answer(s[x:x + 4096],
+                                                        parse_mode=ParseMode.HTML)
                 msg = await callback.message.answer("Выбирайте:", reply_markup=keyboards.keyboard_sort_teacher())
             else:
                 msg = await callback.message.edit_text(s, reply_markup=keyboards.keyboard_sort_teacher(),
@@ -159,7 +158,7 @@ async def check_messages(callback: types.CallbackQuery, state: FSMContext, bot: 
     await callback.answer()
 
 
-@router.message(CheckMessage.waiting_id, F.text)
+@teacher_router.message(CheckMessage.waiting_id, F.text)
 async def waiting_id(message: types.Message, state: FSMContext, bot: Bot) -> object:
     # Fix taking all data and putting info whether it was taken or not
     messages_students = database.fetchall_multiple("SELECT * FROM requests_queue WHERE proceeed=0 OR proceeed=1")
@@ -225,7 +224,7 @@ async def waiting_id(message: types.Message, state: FSMContext, bot: Bot) -> obj
     logger.info(f"{message.from_user.username} updates state data msg={msg.message_id}")
 
 
-@router.callback_query(CheckMessage.waiting_action, F.data == CallbackDataKeys.accept_task)
+@teacher_router.callback_query(CheckMessage.waiting_action, F.data == CallbackDataKeys.accept_task)
 async def take_on_work(callback: types.CallbackQuery, bot: Bot, state: FSMContext) -> object:
     data = await state.get_data()
     messages_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0")
@@ -242,15 +241,17 @@ async def take_on_work(callback: types.CallbackQuery, bot: Bot, state: FSMContex
         return waiting_id
 
 
-@router.callback_query(CheckMessage.waiting_action, F.data == CallbackDataKeys.reject_task)
+@teacher_router.callback_query(CheckMessage.waiting_action, F.data == CallbackDataKeys.reject_task)
 async def reject_task(callback: types.CallbackQuery, bot: Bot, state: FSMContext) -> object:
     data = await state.get_data()
     messages_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0")
 
     if data['id'] in messages_ids:
-        delete_file(data)
+        # delete_file(data)
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         database.execute(f"UPDATE requests_queue SET proceeed=4 WHERE id=?", (data['id'],))
+        database.execute("UPDATE requests_queue SET close_time=? WHERE id=?", (current_time, data['id']))
 
         logger.success("File was rejected")
         await bot.send_message(data['idt'], TeacherMessages.REQUEST_REJECTED.format(id=data['id']))
@@ -264,7 +265,7 @@ async def reject_task(callback: types.CallbackQuery, bot: Bot, state: FSMContext
         return waiting_id
 
 
-@router.callback_query(CheckMessage.waiting_action, F.data == CallbackDataKeys.end_task)
+@teacher_router.callback_query(CheckMessage.waiting_action, F.data == CallbackDataKeys.end_task)
 async def finish_work(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
 
@@ -287,7 +288,7 @@ async def finish_work(callback: types.CallbackQuery, state: FSMContext):
         logger.info(f"{callback.message.from_user.username} sets state CheckMessage.waiting_size")
 
 
-@router.message(CheckMessage.waiting_size, F.text)
+@teacher_router.message(CheckMessage.waiting_size, F.text)
 async def finish_work_get_params(message: types.Message, state: FSMContext):
     data = await state.get_data()
 
@@ -354,15 +355,15 @@ def move_file(data) -> None:
 
 # os.replace(f"temporal/{data['idt']}{current_time}.jpg", f"permanent/{data['idt']}{current_time}/.jpg")
 
-@router.message(CheckMessage.waiting_photo_report, F.photo)
+@teacher_router.message(CheckMessage.waiting_photo_report, F.photo)
 async def finish_work_report(message: types.Message, bot: Bot, state: FSMContext):
     data = await state.get_data()
+    excel_table = Excel()
 
-    # print(data['msg'])
-    # await message.delete()
     await bot.delete_message(message.from_user.id, int(data['msg']))
 
-    # delete_file(data)
+    excel_table.write(database.fetchall_multiple("select * from requests_queue where id=?", (data['id'],)))
+
     move_file(data)
 
     database.execute(f"UPDATE requests_queue SET proceeed=2 WHERE id=?", (data['id'],))
@@ -388,16 +389,10 @@ async def finish_work_report(message: types.Message, bot: Bot, state: FSMContext
     logger.success("CheckMessage FSM was cleared")
 
 
-@router.callback_query(CheckMessage.waiting_id, F.data == "back_to_main_teacher")
+@teacher_router.callback_query(F.data == "back_to_main_teacher")
 async def back_to_main_teacher(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
     await callback.message.edit_text(TeacherMessages.CHOOSE_MAIN_TEACHER,
                                      reply_markup=keyboards.keyboard_main_teacher())
 
-    data = await state.get_data()
-    print(data)
-    # try:
-    #     await bot.delete_message(callback.message.from_user.id, int(data['msg']))
-    # except aiogram.exceptions.TelegramBadRequest as e:
-    #     logger.error(f"Occurred {e} with id {data['msg']}")
     await callback.answer()
     await state.clear()

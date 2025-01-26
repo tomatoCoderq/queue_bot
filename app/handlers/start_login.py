@@ -1,5 +1,7 @@
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+
 from app.utilits import keyboards
 from app.utilits.database import database
 from aiogram import Bot, types, Router
@@ -11,7 +13,9 @@ router = Router()
 
 
 @router.message(Command('start'), IsRegistered())
-async def start_logging(message: types.Message, bot: Bot):
+async def start_logging(message: types.Message, bot: Bot, state: FSMContext):
+    await state.clear()
+
     ids = database.fetchall("SELECT idt FROM users")
     roles = database.fetchall("SELECT role FROM users")
 

@@ -17,6 +17,9 @@ from app.handlers import test_handlers
 from app.handlers import student_queue
 from dotenv import load_dotenv
 from app.handlers import test_handlers
+from app.handlers import teacher_history
+from app.handlers import teacher_get_xlsx
+from xlsxwriter.workbook import Workbook
 
 logger.add("logs.log", format="{time}| {level} | {message}", rotation="10MB")
 dp = Dispatcher()
@@ -43,17 +46,19 @@ async def main():
             "CREATE TABLE IF NOT EXISTS requests_queue(id integer primary key autoincrement, idt, "
             "urgency, type, proceeed, time, comments)")
 
+
     except sqlite3.OperationalError as e:
         logger.error("HUGE BD MISTAKE")
 
     # Routers from all handlers
     dp.include_router(student.router)
-    dp.include_router(teacher.router)
+    dp.include_router(teacher.teacher_router)
     dp.include_router(start_registration.router)
     dp.include_router(start_login.router)
     dp.include_router(student_queue.router)
     dp.include_router(test_handlers.router)
-
+    dp.include_router(teacher_history.router)
+    dp.include_router(teacher_get_xlsx.router)
 
     # Dispatchers from all handlers
     start_registration.register_start_signup_handler(dp)
