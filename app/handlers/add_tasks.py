@@ -58,7 +58,8 @@ class EndCurrentTask(StatesGroup):
 
 
 def form_the_message_with_tasks(user_id):
-    query = database.fetchall_multiple("SELECT * from tasks where idt=? and (status=1 or status=5) and SUBSTR(start_time, 1, 10)=DATE('now', 'utc')", (user_id,))
+    query = database.fetchall_multiple(f"SELECT * from tasks where idt=? and (status=1 or status=5) and SUBSTR(start_time, 1, 10)=DATE('now', 'utc')", (user_id, ))
+    print(database.fetchall(f"Select * from tasks where SUBSTR(start_time, 1, 10)=DATE('now', 'utc') and (status=1 or status=5) and idt=?", (str(user_id), )))
     print("DATENOW", database.fetchall_multiple("SELECT DATE('now')"))
 
     print("from", query)
@@ -99,6 +100,7 @@ def is_any_task(user_id):
 @router.callback_query(F.data == CallbackDataKeys.tasks)
 async def tasks(callback: types.CallbackQuery):
     # Here will be tasks
+    print(callback.from_user.id)
     await callback.message.edit_text(form_the_message_with_tasks(callback.from_user.id),
                                      reply_markup=keyboards.keyboard_submit_tasks_student())
 

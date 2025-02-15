@@ -232,10 +232,12 @@ def keyboard_task_card_teacher():
                                     callback_data=CallbackDataKeys.change_current_task)],
         [types.InlineKeyboardButton(text=KeyboardTitles.first_task, callback_data=CallbackDataKeys.task_one),
          types.InlineKeyboardButton(text=KeyboardTitles.second_task, callback_data=CallbackDataKeys.task_two)],
+        [types.InlineKeyboardButton(text="Добавить задачи",
+                                    callback_data="add_tasks_to_student")],
         [types.InlineKeyboardButton(text=KeyboardTitles.reject_current_task,
                                     callback_data=CallbackDataKeys.reject_current_task)],
         [types.InlineKeyboardButton(text=KeyboardTitles.back_to_main_teacher,
-                                    callback_data=CallbackDataKeys.back_to_tasks_teacher)]
+                                    callback_data=CallbackDataKeys.back_to_tasks_teacher)],
     ]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
