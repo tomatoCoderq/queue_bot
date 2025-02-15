@@ -58,8 +58,10 @@ async def main():
         cursor.execute("CREATE TABLE IF NOT EXISTS tasks(id integer primary key, idt, task_first, "
                        "task_second, start_time, status, shift)")
 
-    except sqlite3.OperationalError as e:
-        logger.error("HUGE BD MISTAKE")
+        cursor.execute("CREATE TABLE IF NOT EXISTS penalties(id integer primary key, idt, reason)")
+
+    except (sqlite3.OperationalError, sqlite3.Error) as e:
+        logger.error(f"HUGE BD MISTAKE: {e}")
 
     # os.environ['TZ'] = 'Europe/Moscow'
     # time.tzset()

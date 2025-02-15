@@ -72,13 +72,13 @@ def generate_message_to_send(message, students_messages) -> str:
         return "<b>Ошибка!</b>"
 
     response = [
-        (f"<b>ID</b>: {students_messages[i][0]}\n"
-         f"<b>Имя</b>: {cidt_name_map[students_messages[i][1]][0]} "
-         f"{cidt_name_map[students_messages[i][1]][1]}\n"
-         f"<b>Файл</b>: {students_messages[i][8]}.{students_messages[i][3]}\n"
-         f"<b>Срочность</b>: {urgency_int_to_str(students_messages[i][2])}\n"
-         f"<b>Статус</b>: {status_int_to_str(students_messages[i][4])}\n"
-         f"<b>Количество</b>: {students_messages[i][7]}\n---\n") for i in range(len(students_messages))]
+        (f"<b>ID</b>: {students_messages[i][0]} | "
+         f"{cidt_name_map[students_messages[i][1]][0]} "
+         f"{cidt_name_map[students_messages[i][1]][1]} | "
+         f"{students_messages[i][8]}.<i>{students_messages[i][3]}</i>\n"
+         f"<b>Количество</b>: {students_messages[i][7]} | "
+         f"<b>Срочность</b>: {urgency_int_to_str(students_messages[i][2])} | "
+         f"<b>Статус</b>: {status_int_to_str(students_messages[i][4])}\n---\n") for i in range(len(students_messages))]
 
     message_to_send = message
     if len(response) == 0:

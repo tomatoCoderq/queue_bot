@@ -150,7 +150,9 @@ def keyboard_main_teacher():
         [types.InlineKeyboardButton(text=KeyboardTitles.details_queue_teacher,
                                     callback_data=CallbackDataKeys.details_queue_teacher)],
         [types.InlineKeyboardButton(text=KeyboardTitles.client_tasks,
-                                    callback_data=CallbackDataKeys.client_tasks)]
+                                    callback_data=CallbackDataKeys.client_tasks)],
+        [types.InlineKeyboardButton(text="Штрафы",
+                                    callback_data="penalties")],
     ]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
