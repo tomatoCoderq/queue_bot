@@ -17,7 +17,7 @@ router = Router()
 async def get_xlsx(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.delete()
     await callback.message.answer_document(document=FSInputFile(os.getenv("FILE")),
-                                           reply_markup=keyboards.keyboard_back_to_main_teacher_no_edit())
+                                           reply_markup=keyboards.keyboard_back_to_details_teacher())
 
 
 @router.callback_query(F.data == CallbackDataKeys.back_to_main_teacher_no_edit)

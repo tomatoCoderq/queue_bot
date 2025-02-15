@@ -28,7 +28,7 @@ async def history(callback: types.CallbackQuery, state: FSMContext):
 
     message_to_send = generate_message_to_send("Напишите ID, чтобы вернуть его из удаленных\n", students_messages)
 
-    await callback.message.edit_text(message_to_send, reply_markup=keyboards.keyboard_back_to_main_teacher())
+    await callback.message.edit_text(message_to_send, reply_markup=keyboards.keyboard_back_to_details_teacher())
     await callback.answer()
 
     await state.set_state(ReturnToQueue.waiting_id)

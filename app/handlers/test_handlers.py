@@ -5,6 +5,7 @@ from loguru import logger
 
 from app.utilits.database import database
 from app.utilits.filters import IsTeacher
+
 # from start_registration import teachers
 
 # conn = sqlite3.connect("database/db.db")
@@ -62,10 +63,26 @@ dp = Dispatcher()
 #
 #
 
+@router.message(Command("announce"), IsTeacher())
+async def announce(message: types.Message, bot: Bot):
+    students_ids = database.fetchall("SELECT idt FROM students")
+
+    to_send = ("<b>Внимание</b>! Просьба всех, кто приходит на занятие, отмечать свои задачи в боте ИЛИ у Хасана где-то там в подвале\n"
+               "Всем спасибо :)")
+    # for message in message.text.split()[1:]:
+    #     to_send += f"{message}\t"
+    #
+    for id in students_ids:
+        await bot.send_message(id, to_send)
+
+
+async def help(message: types.Message):
+    await message.answer("/cancel для отмены состояний\n/start если ничего не работает\n"
+                         "если совсем ничего не работает писать @tomatocoder")
 
 
 @router.message(Command("update"), IsTeacher())
-async def update(message:types.Message, bot: Bot):
+async def update(message: types.Message, bot: Bot):
     students_ids = database.fetchall("SELECT idt FROM users")
 
     to_send = "Апдейт! Если что-то не работает, напишите, пожалуйста, @tomatocoder :)\n"
@@ -88,7 +105,7 @@ async def delete(message: types.Message, bot: Bot):
     if len(username) != 1:
         user = username[1]
 
-        database.execute(f"DELETE FROM users WHERE user=?", (user, ))
+        database.execute(f"DELETE FROM users WHERE user=?", (user,))
 
         await message.answer(f"{user} удален!")
 
@@ -102,10 +119,10 @@ async def delete(message: types.Message, bot: Bot):
     if len(username) != 1:
         user = username[1]
         print(user)
-        idt = database.fetchall(f"SELECT idt from users where user=?", (user, ))
+        idt = database.fetchall(f"SELECT idt from users where user=?", (user,))
         print(idt)
 
-        database.execute(f"DELETE FROM users WHERE user=?", (user, ))
+        database.execute(f"DELETE FROM users WHERE user=?", (user,))
         database.execute(f"DELETE FROM students WHERE idt=?", (idt[0],))
         database.execute(f"DELETE FROM requests_queue WHERE idt=?", (idt[0],))
 

@@ -35,7 +35,9 @@ class CheckMessage(StatesGroup):
     waiting_photo_report = State()
 
 
-def create_idt_name_map() -> map:
+# Form names connected only with student table
+# Delete all previous attention messages
+def create_idt_name_map() -> dict[str, tuple[str, str]]:
     database.execute("""
     SELECT requests_queue.idt, students.name, students.surname FROM requests_queue INNER JOIN students
     ON requests_queue.idt = students.idt
@@ -95,6 +97,11 @@ async def cancel(message: types.Message, state: FSMContext):
     await state.clear()
 
 
+@teacher_router.callback_query(F.data == CallbackDataKeys.details_queue_teacher)
+async def details_queue_teacher(callback: types.CallbackQuery, bot: Bot, state: FSMContext) -> object:
+    await callback.message.edit_text("Действия:", reply_markup=keyboards.keyboard_details_teacher())
+
+
 @teacher_router.callback_query(F.data.in_({"sort_urgency", "sort_date", "sort_type"}))
 async def sort(callback: types.CallbackQuery, state: FSMContext) -> None:
     # students_messages = []
@@ -127,8 +134,7 @@ async def check_messages(callback: types.CallbackQuery, state: FSMContext, bot: 
     students_messages = database.fetchall_multiple("SELECT * FROM requests_queue WHERE proceeed=0 OR proceeed=1")
 
     s = generate_message_to_send(TeacherMessages.SELECT_REQUEST, students_messages)
-    data = await state.get_data()
-    print(f"len{len(s)}")
+
     try:
         # ToDO: Rewrite this division
         if callback.data == "check":
@@ -143,16 +149,16 @@ async def check_messages(callback: types.CallbackQuery, state: FSMContext, bot: 
         else:
             # await bot.delete_message(callback.message.from_user.id, data['msg'])
             await callback.message.delete()
-            msg = await callback.message.answer(s, reply_markup=keyboards.keyboard_sort_teacher(),
+            msg = await callback.message.answer(s, reply_markup=keyboards.keyboard_details_teacher(),
                                                 parse_mode=ParseMode.HTML)
     except aiogram.exceptions.TelegramBadRequest as e:
-        logger.error(f"Occurred {e} with id {data['msg']}")
+        logger.error(f"Occurred {e}")
 
     await state.set_state(CheckMessage.waiting_id)
     logger.info(f"{callback.message.from_user.username} sets state CheckMessage.waiting_id")
 
     await state.update_data(msg=msg.message_id)
-    print(msg.message_id)
+
     logger.info(f"{callback.message.from_user.username} updates state data msg={msg.message_id}")
 
     await callback.answer()
@@ -224,7 +230,7 @@ async def waiting_id(message: types.Message, state: FSMContext, bot: Bot) -> obj
     logger.info(f"{message.from_user.username} updates state data msg={msg.message_id}")
 
 
-@teacher_router.callback_query(CheckMessage.waiting_action, F.data == CallbackDataKeys.accept_task)
+@teacher_router.callback_query(CheckMessage.waiting_action, F.data == CallbackDataKeys.accept_detail)
 async def take_on_work(callback: types.CallbackQuery, bot: Bot, state: FSMContext) -> object:
     data = await state.get_data()
     messages_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0")
@@ -241,7 +247,7 @@ async def take_on_work(callback: types.CallbackQuery, bot: Bot, state: FSMContex
         return waiting_id
 
 
-@teacher_router.callback_query(CheckMessage.waiting_action, F.data == CallbackDataKeys.reject_task)
+@teacher_router.callback_query(CheckMessage.waiting_action, F.data == CallbackDataKeys.reject_detail)
 async def reject_task(callback: types.CallbackQuery, bot: Bot, state: FSMContext) -> object:
     data = await state.get_data()
     messages_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0")
@@ -299,8 +305,7 @@ async def finish_work_get_params(message: types.Message, state: FSMContext):
     if data['type'] == "dxf" and len(message.text.split()) != 2:
         await message.answer(TeacherMessages.INVALID_SIZE_INPUT)
         return finish_work_get_params
-
-    if not (message.text.split()[0].isdigit() and message.text.split()[1].isdigit()):
+    if data['type'] == "dxf" and message.text.split()[0].isdigit() and message.text.split()[1].isdigit():
         await message.answer(StudentMessages.INVALID_AMOUNT_INPUT)
         return finish_work_get_params
 
@@ -393,6 +398,21 @@ async def finish_work_report(message: types.Message, bot: Bot, state: FSMContext
 async def back_to_main_teacher(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
     await callback.message.edit_text(TeacherMessages.CHOOSE_MAIN_TEACHER,
                                      reply_markup=keyboards.keyboard_main_teacher())
+
+    await callback.answer()
+    await state.clear()
+
+
+@teacher_router.callback_query(F.data == "back_to_details_teacher")
+async def back_to_main_teacher(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
+    if callback.message.document:
+        await callback.message.answer(TeacherMessages.CHOOSE_MAIN_TEACHER,
+                                      reply_markup=keyboards.keyboard_details_teacher())
+        await callback.message.delete()
+
+    else:
+        await callback.message.edit_text(TeacherMessages.CHOOSE_MAIN_TEACHER,
+                                         reply_markup=keyboards.keyboard_details_teacher())
 
     await callback.answer()
     await state.clear()

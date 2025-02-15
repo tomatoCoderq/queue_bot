@@ -4,13 +4,24 @@ class KeyboardTitles:
     start_registration_operator = "Оператор"
 
     # Titles for student main actions
-    upload_task = "⬇️Загрузить на печать/резку"
+    upload_detail = "⬇️Загрузить на печать/резку"
     task_queue = "📂Очередь заданий"
+    tasks = "📆Задачи"
+
+    # Titles for tasks
+    submit_tasks = "📌Установить задачи"
+    close_tasks = "🆗Закончить на сегодня"
+
+    end_current_task = "Закончить нынешнюю задачу"
+    continue_current_task = "Докинуть"
 
     # Titles for urgency levels
     urgency_high = "🔴Высокий"
     urgency_medium = "🟠Средний"
     urgency_low = "🟢Низкий"
+
+    details_queue_teacher = "📂Задания"
+    client_tasks = "📆Задачи"
 
     # Titles for teacher actions
     open_queue = "📂Открыть очередь"
@@ -27,14 +38,25 @@ class KeyboardTitles:
     reject_high_urgency = "❌Отклонить"
     accept_task = "✅Принять"
     reject_task = "❌Отклонить"
-    accept_task_already_accepted = "⬛️Принять"
-    reject_task_already_accepted = "⬛Отклонить"
-    end_task = "⬛️Закончить печать/резку"
-    end_task_accepted = "🟩Закончить печать/резку"
+    accept_detail_already_accepted = "⬛️Принять"
+    reject_detail_already_accepted = "⬛Отклонить"
+    end_detail = "⬛️Закончить печать/резку"
+    end_detail_accepted = "🟩Закончить печать/резку"
     back_to_queue = "⬅️Назад"
 
     # Back to main menu for student
     back_to_main_student = "⬅️Назад"
+
+    # Titles for tasks actions student
+    add_10_minutes = "10"
+    add_15_minutes = "15"
+    add_30_minutes = "30"
+
+    # Titles for tasks actions teacher
+    change_current_task = "Поменять задание"
+    first_task = "1️⃣"
+    second_task = "2️⃣"
+    reject_current_task = "Отклонить задание"
 
 
 class StudentMessages:
@@ -78,12 +100,31 @@ class StudentMessages:
     )
 
     HIGH_URGENCY_ACCEPTED = "🟩Высокий приоритет одобрен!"
+
     HIGH_URGENCY_REJECTED = "🟥Высокий приоритет не одобрен!"
+
     SUCESSFULLY_DELETED = "Ваш запрос удален!"
     NO_ID_FOUND = ("🟥Такого ID <b>нет</b> в списке или деталь уже принята в работу!. "
                    f"Попробуйте еще раз\nЕсли вы хотите вернуться в главное меню, "
-                   f"пропишите /cancel" )
+                   f"пропишите /cancel")
 
+    NO_TASKS = "Задачи отсуствуют!\n"
+
+    WRITE_FIRST_TASK_TO_SUBMIT = ("Напишите задачу на <b>первый</b> час:\n"
+                                  "<b>Внимание!</b> Выбирайте аккуратно и проконсультируйтесь с преподавателем,"
+                                  "изменить задачу не получится в течение часа")
+
+    WRITE_SECOND_TASK_TO_SUBMIT = "Напишите задачу на <b>следующий</b> час:\n"
+
+    SEND_TO_OPERATOR_TASKS = "{task_one}\n{task_two} ID {database.fetchall('select id from tasks order by id desc')[0]}"
+
+    SUCESSFULLY_ADDED_TASKS = "Задачи отправлены оператору! Ожидайте фидбек\n<b>ID запроса:</b> {request_id}"
+
+    INVITE_OPERATOR_FOR_APPROVE = "Сейчас подойдет оператор, чтобы подтвердить запрос!"
+
+    ASK_OPERATOR_TO_COME_FOR_APPROVE = "Подойдите на апрув запроса с\nID: {database.last_added_id()}"
+
+    TASKS_NOT_SET = "Задачи еще не были установлены на сегодня"
 
 class LoginMessages:
     welcome_teacher = (
@@ -132,4 +173,3 @@ class TeacherMessages:
     NO_REQUESTS = "Очередь пуста и запросов нет!"
     SELECT_REQUEST = "Напишите ID запроса, чтобы увидеть подробную информацию\n---\n"
     ID_ERROR = "<b>🟥Произошла ошибка!</b> Пропишите /cancel"
-

@@ -22,6 +22,7 @@ from app.utilits.messages import StudentMessages
 router = Router()
 dp = Dispatcher()
 
+# TODO: Write a class Student to handle all operations with it
 
 class SendPiece(StatesGroup):
     waiting_urgency = State()

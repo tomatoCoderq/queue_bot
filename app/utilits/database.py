@@ -31,6 +31,12 @@ class Database:
         except sqlite3.Error as e:
             logger.error(f"Error executing query: {e}")
 
+    def last_added_id(self, idt):
+        try:
+            return self.fetchall(f"select id from tasks where idt={idt}")[-1]
+        except (sqlite3.Error, IndexError) as e:
+            logger.error(f"Error executing query/ Or index error: {e}")
+
     def close(self):
         self.conn.close()
 
