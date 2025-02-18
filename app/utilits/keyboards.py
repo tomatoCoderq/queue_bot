@@ -39,6 +39,7 @@ class CallbackDataKeys:
     back_to_details_teacher = "back_to_details_teacher"
     back_to_main_teacher_no_edit = "back_to_main_teacher_no_edit"
     back_to_tasks_teacher = "back_to_tasks_teacher"
+    back_to_penalties_teacher = "back_to_penalties_teacher"
 
     # Callback data for teacher process actions
     confirm_high_urgency = "accept_high_urgency"
@@ -68,6 +69,10 @@ class CallbackDataKeys:
     task_one = "task_one"
     task_two = "task_two"
 
+    penalties = "penalty"
+    add_penalty = "add_penalty"
+    remove_penalty = "remove_penalty"
+    add_tasks_to_student = "add_tasks_to_student"
 
 
 def keyboard_start_registration():
@@ -151,8 +156,8 @@ def keyboard_main_teacher():
                                     callback_data=CallbackDataKeys.details_queue_teacher)],
         [types.InlineKeyboardButton(text=KeyboardTitles.client_tasks,
                                     callback_data=CallbackDataKeys.client_tasks)],
-        [types.InlineKeyboardButton(text="Штрафы",
-                                    callback_data="penalties")],
+        [types.InlineKeyboardButton(text=KeyboardTitles.penalties,
+                                    callback_data=CallbackDataKeys.penalties)],
     ]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -234,12 +239,22 @@ def keyboard_task_card_teacher():
                                     callback_data=CallbackDataKeys.change_current_task)],
         [types.InlineKeyboardButton(text=KeyboardTitles.first_task, callback_data=CallbackDataKeys.task_one),
          types.InlineKeyboardButton(text=KeyboardTitles.second_task, callback_data=CallbackDataKeys.task_two)],
-        [types.InlineKeyboardButton(text="Добавить задачи",
-                                    callback_data="add_tasks_to_student")],
+        [types.InlineKeyboardButton(text=KeyboardTitles.add_tasks_to_student,
+                                    callback_data=CallbackDataKeys.add_tasks_to_student)],
         [types.InlineKeyboardButton(text=KeyboardTitles.reject_current_task,
                                     callback_data=CallbackDataKeys.reject_current_task)],
         [types.InlineKeyboardButton(text=KeyboardTitles.back_to_main_teacher,
                                     callback_data=CallbackDataKeys.back_to_tasks_teacher)],
+    ]
+    return types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def keyboard_penalty_card_teacher():
+    buttons = [
+        [types.InlineKeyboardButton(text=KeyboardTitles.add_penalty, callback_data=CallbackDataKeys.add_penalty),
+         types.InlineKeyboardButton(text=KeyboardTitles.remove_penalty, callback_data=CallbackDataKeys.remove_penalty)],
+        [types.InlineKeyboardButton(text=KeyboardTitles.back_to_main_teacher,
+                                    callback_data=CallbackDataKeys.back_to_penalties_teacher)],
     ]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 

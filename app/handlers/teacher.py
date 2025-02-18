@@ -305,9 +305,11 @@ async def finish_work_get_params(message: types.Message, state: FSMContext):
     if data['type'] == "dxf" and len(message.text.split()) != 2:
         await message.answer(TeacherMessages.INVALID_SIZE_INPUT)
         return finish_work_get_params
-    if data['type'] == "dxf" and message.text.split()[0].isdigit() and message.text.split()[1].isdigit():
-        await message.answer(StudentMessages.INVALID_AMOUNT_INPUT)
-        return finish_work_get_params
+
+    if len(message.text.split()) == 2:
+        if data['type'] == "dxf" and not message.text.split()[0].isdigit() or not message.text.split()[1].isdigit():
+            await message.answer(StudentMessages.INVALID_AMOUNT_INPUT)
+            return finish_work_get_params
 
     to_set = 0
     if data['type'] == "stl":

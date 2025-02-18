@@ -26,6 +26,7 @@ from app.handlers import teacher_get_xlsx
 from app.handlers import add_tasks
 from app.handlers import teacher_proceed_tasks
 from app.handlers import teacher_tasks_queue
+from app.handlers import penalty
 
 from xlsxwriter.workbook import Workbook
 
@@ -58,7 +59,7 @@ async def main():
         cursor.execute("CREATE TABLE IF NOT EXISTS tasks(id integer primary key, idt, task_first, "
                        "task_second, start_time, status, shift)")
 
-        cursor.execute("CREATE TABLE IF NOT EXISTS penalties(id integer primary key, idt, reason)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS penalty(id integer primary key, idt, reason)")
 
     except (sqlite3.OperationalError, sqlite3.Error) as e:
         logger.error(f"HUGE BD MISTAKE: {e}")
@@ -79,6 +80,7 @@ async def main():
     dp.include_router(add_tasks.router)
     dp.include_router(teacher_proceed_tasks.router)
     dp.include_router(teacher_tasks_queue.router)
+    dp.include_router(penalty.router)
 
 
     # Dispatchers from all handlers

@@ -77,14 +77,10 @@ def map_names_and_idt() -> dict[str, tuple[str, str]]:
 def form_the_message_with_tasks_to_teacher():
     message_to_send = "Введите ID нужного пользователя:\n"
     names_ids = map_names_and_idt()
-    # Useful string: where (status=1 or status=5) and substring(start_time, 1, 10)=current_date"
+
     for idt, name in names_ids.items():
         message_to_send += f"{name[0]} {name[1]} | {idt}\n"
-        # print(idt, name[0], name[1])
-    # client_tasks = database.fetchall_multiple("SELECT * from tasks")
-    # print(client_tasks)
-    # for i, client_task in enumerate(client_tasks):
-    #     message_to_send += f"{i + 1}. {names_ids[client_task[1]][0]} {names_ids[client_task[1]][1]} | {client_task[1]}\n"
+
     return message_to_send
 
 
