@@ -3,8 +3,8 @@ from aiogram.filters import Command
 from aiogram import Bot, types, Dispatcher, Router
 from loguru import logger
 
-from app.utilits.database import database
-from app.utilits.filters import IsTeacher
+from app.utils.database import database
+from app.utils.filters import IsTeacher
 
 # from start_registration import teachers
 

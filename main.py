@@ -13,20 +13,19 @@ from asyncio import *
 import aioschedule as schedule
 
 
-from app.handlers import start_login
-from app.handlers import start_registration
-from app.handlers import student
-from app.handlers import teacher
+from app.handlers import start
+from app.handlers import client_details
+from app.handlers import operator_details
 from app.handlers import test_handlers
 from app.handlers import student_queue
 from dotenv import load_dotenv
 from app.handlers import test_handlers
-from app.handlers import teacher_history
-from app.handlers import teacher_get_xlsx
 from app.handlers import add_tasks
 from app.handlers import teacher_proceed_tasks
 from app.handlers import teacher_tasks_queue
 from app.handlers import penalty
+from app.handlers import details
+from app.handlers import details_client
 
 from xlsxwriter.workbook import Workbook
 
@@ -61,6 +60,11 @@ async def main():
 
         cursor.execute("CREATE TABLE IF NOT EXISTS penalty(id integer primary key, idt, reason)")
 
+        # All details one by one
+        cursor.execute("CREATE TABLE IF NOT EXISTS details(id integer primary key, name, price, owner)")
+
+        cursor.execute("""CREATE TABLE IF NOT EXISTS detail_aliases (name, alias)""")
+
     except (sqlite3.OperationalError, sqlite3.Error) as e:
         logger.error(f"HUGE BD MISTAKE: {e}")
 
@@ -69,27 +73,26 @@ async def main():
     # time.strftime('%X %x')
 
     # Routers from all handlers
-    dp.include_router(student.router)
-    dp.include_router(teacher.teacher_router)
-    dp.include_router(start_registration.router)
-    dp.include_router(start_login.router)
+    dp.include_router(client_details.router)
+    dp.include_router(operator_details.teacher_router)
+    dp.include_router(start.router)
     dp.include_router(student_queue.router)
     dp.include_router(test_handlers.router)
-    dp.include_router(teacher_history.router)
-    dp.include_router(teacher_get_xlsx.router)
     dp.include_router(add_tasks.router)
     dp.include_router(teacher_proceed_tasks.router)
     dp.include_router(teacher_tasks_queue.router)
     dp.include_router(penalty.router)
+    dp.include_router(details.router)
+    dp.include_router(details_client.router)
 
 
     # Dispatchers from all handlers
-    start_registration.register_start_signup_handler(dp)
     # start_login.register_start_logging_handler(dp)
     test_handlers.register_test_handler(dp)
 
     asyncio.create_task(add_tasks.scheduler(bot))
 
+    # await bot.delete_webhook()
     await dp.start_polling(bot)
 #
 # async def on_startup():

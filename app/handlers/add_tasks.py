@@ -9,20 +9,20 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram import F, Dispatcher
 from aiogram.filters import StateFilter, Command
+from app.utils.files import *
+
 
 from app.handlers.test_handlers import update
-from app.utilits import keyboards
+from app.utils import keyboards
 from aiogram import Bot, types, Router
 from loguru import logger
 from aiogram.filters import BaseFilter
 import aioschedule
 
-from app.utilits.database import database
-from app.utilits.keyboards import CallbackDataKeys
-# from main import dp
-from app.handlers.teacher import create_idt_name_map
-from app.utilits.filters import IsStudent
-from app.utilits.messages import StudentMessages, TeacherMessages
+from app.utils.database import database
+from app.utils.keyboards import CallbackDataKeys
+
+from app.utils.messages import StudentMessages, TeacherMessages
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 

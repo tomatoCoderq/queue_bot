@@ -3,13 +3,14 @@ from aiogram import F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
-from app.utilits import keyboards
+from app.utils import keyboards
 from aiogram import types, Router, Bot
-from app.handlers.teacher import status_int_to_str
-from app.utilits.database import database
-from app.utilits.messages import TeacherMessages, StudentMessages
+from app.handlers.operator_details import Operator
+from app.utils.database import database
+from app.utils.messages import TeacherMessages, StudentMessages
 from loguru import logger
-from app.handlers.teacher import delete_file
+from app.utils.files import *
+# from app.handlers.teacher import delete_file
 
 
 router = Router()
@@ -22,7 +23,7 @@ def generate_message_to_send(students_messages) -> str:
     message_to_send = [
         (f"<b>ID</b>: {students_messages[i][0]}\n"
          f"<b>Файл</b>: {students_messages[i][8]}.{students_messages[i][3]}\n"
-         f"<b>Статус</b>: {status_int_to_str(students_messages[i][4])}\n---\n") for i in range(len(students_messages))]
+         f"<b>Статус</b>: {Operator.status_int_to_str(students_messages[i][4])}\n---\n") for i in range(len(students_messages))]
 
     s = ('Если вы хотите удалить один из своих запросов, введите его ID! '
          'Удаляйте только неудачные или неправильно отправленные детали.\n'
