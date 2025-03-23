@@ -16,6 +16,8 @@ from loguru import logger
 from aiogram.filters import BaseFilter
 
 from app.utils.database import database
+from app.utils.keyboards import CallbackDataKeys
+from app.utils.messages import KeyboardTitles, StudentMessages
 
 router = Router()
 dp = Dispatcher()
@@ -78,45 +80,50 @@ class Client:
         return details_list
 
 
-@router.callback_query(F.data == "student_equipment")
+@router.callback_query(F.data == CallbackDataKeys.STUDENT_EQUIPMENT)
 async def show_inventory(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
     details = database.fetchall_multiple("SELECT * FROM details WHERE owner = ?", (user_id,))
 
-    # Create an inline keyboard with a back button.
-    back_button = types.InlineKeyboardButton(text="⬅️ Back", callback_data="back_to_menu")
-    back_keyboard = types.InlineKeyboardMarkup(inline_keyboard=[[back_button]])
-
     if not details:
         await callback.message.answer(
-            "<b>⚠️ No equipment found for your account!</b>",
+            StudentMessages.NO_EQUIPMENT_FOUND,
             parse_mode=ParseMode.HTML,
-            reply_markup=back_keyboard
+            reply_markup=keyboard_alias_back()
         )
     else:
-        equipment_message = "<b>📦 Your Equipment:</b>\n\n"
+        equipment_message = StudentMessages.YOUR_EQUIPMENT_HEADER
         for detail in details:
             detail_id, name, price, owner = detail
-            equipment_message += (
-                f"🔹 <b>ID:</b> {detail_id}  |  "
-                f"<b>Name:</b> {name}  |  "
-                f"<b>Price:</b> {price}\n"
-            )
+            equipment_message += StudentMessages.EQUIPMENT_ITEM_FORMAT.format(
+                detail_id=detail_id, name=name, price=price)
         await callback.message.edit_text(
             equipment_message,
             parse_mode=ParseMode.HTML,
-            reply_markup=back_keyboard
+            reply_markup=keyboard_alias_back()
         )
-
     await callback.answer()
 
 
-@router.callback_query(F.data == "back_to_menu")
+@router.callback_query(F.data == CallbackDataKeys.BACK_TO_MAIN)
 async def back_to_menu(callback: types.CallbackQuery, state: FSMContext):
-    # Assuming keyboards.keyboard_main_student() returns the main menu for students.
     await callback.message.edit_text(
-        "<b>Main Menu</b>",
+        StudentMessages.choose_next_action,
         reply_markup=keyboards.keyboard_main_student(),
         parse_mode=ParseMode.HTML
     )
     await callback.answer()
+
+
+def keyboard_inventory():
+    buttons = [
+        [types.InlineKeyboardButton(text=KeyboardTitles.ADD_DETAIL, callback_data=CallbackDataKeys.INVENTORY_ADD)],
+        [types.InlineKeyboardButton(text=KeyboardTitles.BACK, callback_data=CallbackDataKeys.BACK_TO_MAIN)]
+    ]
+    return types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def keyboard_alias_back():
+    return types.InlineKeyboardMarkup(
+        inline_keyboard=[[types.InlineKeyboardButton(text=KeyboardTitles.BACK, callback_data=CallbackDataKeys.BACK_TO_INVENTORY)]]
+    )

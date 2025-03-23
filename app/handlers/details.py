@@ -227,22 +227,7 @@ async def process_inventory_add(message: types.Message, state: FSMContext):
 
 # Add code inside show_bucket to another function to get the list of all availible details from everywhere
 
-@router.callback_query(F.data.in_({"back_to_inventory", "teacher_equipment"}))
-async def show_bucket(callback: types.CallbackQuery, state: FSMContext):
-    operator = OperatorDetails(str(callback.from_user.id))
-    # Assume operator.bucket is an instance of Bucket.
-    bucket_details = operator.bucket  # Use the Bucket instance.
-    if not bucket_details or not bucket_details.get_details():
-        text = "<b>Ваша корзина пуста.</b>"
-    else:
-        lines = []
-        for detail in bucket_details.get_details():
-            lines.append(f"🔹 <b>ID:</b> {detail.detail_id} – <b>{detail.name}</b> (<b>Цена:</b> {detail.price})")
-        text = "<b>Корзина:</b>\n" + "\n".join(lines)
-    await callback.message.edit_text(text, reply_markup=keyboard_inventory())
-    await state.clear()
-
-    # Show a summary grouped by detail name.
+async def form_message_with_bucket(callback: Union[types.CallbackQuery, types.Message], state: FSMContext):
     operator = OperatorDetails(str(callback.from_user.id))
     details_list = operator.get_all_details()
 
@@ -257,9 +242,64 @@ async def show_bucket(callback: types.CallbackQuery, state: FSMContext):
         summary_lines.append(f"🔸 <b>{alias}</b> (<i>{name}</i>): <b>{len(items)}</b> шт.")
     summary = "\n".join(summary_lines) if summary_lines else "<b>Нет деталей в инвентаре.</b>"
 
-    await callback.message.edit_text(summary, parse_mode=ParseMode.HTML, reply_markup=keyboard_inventory())
+    if isinstance(callback, types.CallbackQuery):
+        await callback.message.edit_text(summary, parse_mode=ParseMode.HTML, reply_markup=keyboard_inventory())
+    else:
+        await callback.answer(summary, parse_mode=ParseMode.HTML, reply_markup=keyboard_inventory())
+
+
+@router.callback_query(F.data.in_({"back_to_inventory", "teacher_equipment"}))
+async def show_bucket(callback: types.CallbackQuery, state: FSMContext):
+    operator = OperatorDetails(str(callback.from_user.id))
+    # Assume operator.bucket is an instance of Bucket.
+    # bucket_details = operator.bucket  # Use the Bucket instance.
+    # if not bucket_details or not bucket_details.get_details():
+    #     text = "<b>Ваша корзина пуста.</b>"
+    # else:
+    #     lines = []
+    #     for detail in bucket_details.get_details():
+    #         lines.append(f"🔹 <b>ID:</b> {detail.detail_id} – <b>{detail.name}</b> (<b>Цена:</b> {detail.price})")
+    #     text = "<b>Корзина:</b>\n" + "\n".join(lines)
+    # await callback.message.edit_text(text, reply_markup=keyboard_inventory())
+
+    await form_message_with_bucket(callback, state)
+    # await state.clear()
+    #
+    # # Show a summary grouped by detail name.
+    # operator = OperatorDetails(str(callback.from_user.id))
+    # details_list = operator.get_all_details()
+    #
+    # detail_groups = {}
+    # for detail in details_list:
+    #     detail_groups.setdefault(detail.name, []).append(detail)
+    #
+    # summary_lines = []
+    # for name, items in detail_groups.items():
+    #     alias_result = database.fetchall("SELECT alias FROM detail_aliases WHERE name=?", (name,))
+    #     alias = alias_result[0] if alias_result else name[:5].upper()
+    #     summary_lines.append(f"🔸 <b>{alias}</b> (<i>{name}</i>): <b>{len(items)}</b> шт.")
+    # summary = "\n".join(summary_lines) if summary_lines else "<b>Нет деталей в инвентаре.</b>"
+    #
+    # await callback.message.edit_text(summary, parse_mode=ParseMode.HTML, reply_markup=keyboard_inventory())
     await state.set_state(AliasLookupState.waiting_for_alias)
 
+
+async def form_message_detail_info(message: types.Message, state: FSMContext, details):
+    cost = details[0][2]  # Assuming the price is stored at index 2.
+    owner_name_map = Operator.get_idt_name_map()
+
+    output_lines = [f"💰 <b>Цена:</b> {cost}", "📦 <b>Объекты:</b>"]
+    for detail in details:
+        obj_id = detail[0]
+        owner_id = detail[3]
+        if owner_id and owner_id in owner_name_map:
+            owner_name = f"{owner_name_map[owner_id][0]} {owner_name_map[owner_id][1]}"
+        else:
+            owner_name = "Нет владельца"
+        output_lines.append(f"🔹 <b>ID:</b> {obj_id} | <b>Владелец:</b> {owner_name}")
+
+    output = "\n".join(output_lines)
+    return output
 
 @router.message(AliasLookupState.waiting_for_alias, F.text)
 async def process_alias_lookup(message: types.Message, state: FSMContext):
@@ -285,31 +325,9 @@ async def process_alias_lookup(message: types.Message, state: FSMContext):
         )
         return
 
-    cost = details[0][2]  # Assuming the price is stored at index 2.
-    owner_name_map = Operator.get_idt_name_map()
+    output = await form_message_detail_info(message, state, details)
 
-    output_lines = [f"💰 <b>Цена:</b> {cost}", "📦 <b>Объекты:</b>"]
-    for detail in details:
-        obj_id = detail[0]
-        owner_id = detail[3]
-        if owner_id and owner_id in owner_name_map:
-            owner_name = f"{owner_name_map[owner_id][0]} {owner_name_map[owner_id][1]}"
-        else:
-            owner_name = "Нет владельца"
-        output_lines.append(f"🔹 <b>ID:</b> {obj_id} | <b>Владелец:</b> {owner_name}")
-
-    output = "\n".join(output_lines)
     await message.answer(output, reply_markup=keyboard_transfer_return(), parse_mode=ParseMode.HTML)
-    await state.clear()
-
-
-@router.callback_query(F.data == "back_to_inventory")
-async def back_to_inventory(callback: types.CallbackQuery, state: FSMContext):
-    await callback.message.edit_text(
-        "<b>Инвентарь</b>:",
-        reply_markup=keyboard_inventory(),
-        parse_mode=ParseMode.HTML
-    )
     await state.clear()
 
 
@@ -364,8 +382,8 @@ async def process_transfer_item(message: types.Message, state: FSMContext):
         reply_markup=keyboard_transfer_return(),
         parse_mode=ParseMode.HTML
     )
-    await state.clear()
-
+    await form_message_with_bucket(message, state)
+    await state.set_state(AliasLookupState.waiting_for_alias)
 
 
 @router.callback_query(F.data == "return_item")

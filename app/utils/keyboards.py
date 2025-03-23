@@ -74,6 +74,13 @@ class CallbackDataKeys:
     remove_penalty = "remove_penalty"
     add_tasks_to_student = "add_tasks_to_student"
 
+    BACK_TO_MAIN = "back_to_main"
+    INVENTORY_ADD = "inventory_add"
+    BACK_TO_INVENTORY = "back_to_inventory"
+    TRANSFER_ITEM = "transfer_item"
+    RETURN_ITEM = "return_item"
+    STUDENT_EQUIPMENT = "student_equipment"
+
 
 def keyboard_start_registration():
     buttons = [
@@ -84,16 +91,16 @@ def keyboard_start_registration():
     ]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
-
+#TODO: change callback data and put into vars
 def keyboard_student_card_actions():
     buttons = [
-        [[types.InlineKeyboardButton(text="Задание 1", callback_data="t1")],
-         [types.InlineKeyboardButton(text="Задание 2", callback_data="t2")]],
-        [[types.InlineKeyboardButton(text="установить задачи", callback_data="settask")],
-         [types.InlineKeyboardButton(text="отклонить задачи", callback_data="removetask")]],
-        [[[types.InlineKeyboardButton(text="добавить штраф", callback_data="settask")]],
-         [types.InlineKeyboardButton(text="убрать штраф", callback_data="settask")]],
-        [types.InlineKeyboardButton(text="Назад", callback_data="bk")]
+        [types.InlineKeyboardButton(text="Задание 1️⃣", callback_data="t1"),
+         types.InlineKeyboardButton(text="Задание 2️⃣", callback_data="t2")],
+        [types.InlineKeyboardButton(text="Установить задания 🔢", callback_data="settask"),
+         types.InlineKeyboardButton(text="Отклонить задания🙅‍♂️", callback_data="removetask")],
+        [types.InlineKeyboardButton(text="Добавить штраф⚖️", callback_data="setpenalty"),
+         types.InlineKeyboardButton(text="Убрать штраф↩️", callback_data="removepenalty")],
+        [types.InlineKeyboardButton(text="Назад⬅️", callback_data="bk")]
     ]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -168,7 +175,7 @@ def keyboard_main_teacher():
     buttons = [
         [types.InlineKeyboardButton(text=KeyboardTitles.details_queue_teacher,
                                     callback_data=CallbackDataKeys.details_queue_teacher)],
-        [types.InlineKeyboardButton(text="Клиенты",
+        [types.InlineKeyboardButton(text="👦🏻Клиенты",
                                     callback_data="clients")],
         # [types.InlineKeyboardButton(text=KeyboardTitles.client_tasks,
         #                             callback_data=CallbackDataKeys.client_tasks)],

@@ -11,12 +11,42 @@ from app.utils.excel_writer import Excel
 from app.models.operator import Operator
 from app.utils.files import *
 
-from app.fsm_states.operator_states import CheckMessage, ShowClientPenaltyCard, ReturnToQueue
+from app.fsm_states.operator_states import CheckMessage, ShowClientPenaltyCard, ReturnToQueue, ShowClientCard
 
 
 class OperatorManager:
     def __init__(self, operator: Operator):
         self.operator = operator
+
+    @staticmethod
+    def __form_the_message_with_penalties():
+        message_to_send = TeacherMessages.ENTER_USER_ID
+        names_ids = map_names_and_idt()
+
+        for idt, name in names_ids.items():
+            number_of_penalties = database.fetchall("Select count(id) from penalty where idt=?", (str(idt),))
+            message_to_send += f"{name[0]} {name[1]} | {idt} | {number_of_penalties[-1]}\n"
+
+        return message_to_send
+
+    async def all_users_penalties_show(self, callback_message: Union[types.Message, types.CallbackQuery],
+                                       state: FSMContext):
+        if isinstance(callback_message, types.Message):
+            await callback_message.answer(self.__form_the_message_with_penalties(),
+                                          reply_markup=keyboards.keyboard_back_to_main_teacher())
+            await state.update_data(prev_msg_id=callback_message.message_id)
+
+        if isinstance(callback_message, types.CallbackQuery):
+            await callback_message.message.edit_text(self.__form_the_message_with_penalties(),
+                                                     reply_markup=keyboards.keyboard_back_to_main_teacher())
+            await state.update_data(prev_msg_id=callback_message.message.message_id)
+
+        await state.set_state(ShowClientCard.get_client_id)
+
+
+class OperatorManagerDetails(OperatorManager):
+    def __init__(self, operator: Operator):
+        super().__init__(operator)
 
     async def cancel_process(self, message: types.Message, state: FSMContext):
         """Cancel current operation and return to the main teacher menu."""
@@ -296,8 +326,9 @@ class OperatorManager:
         students_messages = database.fetchall_multiple("select * from requests_queue where "
                                                        "proceeed=4 order by close_time desc limit 3")
 
-        message_to_send = OperatorManager.generate_message_to_send("Напишите ID, чтобы вернуть его из удаленных\n",
-                                                                   students_messages)
+        message_to_send = OperatorManagerDetails.generate_message_to_send(
+            "Напишите ID, чтобы вернуть его из удаленных\n",
+            students_messages)
 
         await callback.message.edit_text(message_to_send, reply_markup=keyboards.keyboard_back_to_details_teacher())
         await callback.answer()
@@ -326,90 +357,166 @@ class OperatorManager:
         await state.clear()
 
 
-class OperatorManagerPenalties:
+class OperatorManagerPenalties(OperatorManager):
     def __init__(self, operator: Operator):
-        self.operator = operator
+        super().__init__(operator)
 
-    # Put in base class
-    def __form_the_message_with_penalties(self):
-        message_to_send = TeacherMessages.ENTER_USER_ID
-        names_ids = map_names_and_idt()
+    # async def penalty_card(self, message, state, bot, idt):
+    #     client = Client(idt, "qw")
+    #
+    #     penalties = client.get_penalties()
+    #
+    #     message_to_send = "<b>ID | Причина</b>\n"
+    #     message_to_send += penalties
+    #
+    #     await message.delete()
+    #
+    #     await message.answer(message_to_send, reply_markup=keyboards.keyboard_penalty_card_teacher())
+    #
+    #     await state.update_data(prev_msg_id=message.message_id)
+    #     await state.set_state(ShowClientPenaltyCard.further_actions)
+    #
+    # # async def penalty(callback: types.CallbackQuery, state: FSMContext):
+    # #     await all_users_penalties_show(callback, state)
+    #
+    # async def show_penalty_card(self, message: types.Message, state: FSMContext, bot: Bot):
+    #     data = await state.get_data()
+    #     await bot.delete_message(message.from_user.id, data['prev_msg_id'])
+    #     await self.penalty_card(message, state, bot, message.text)
+    #     await state.update_data(idt=message.text)
+    #
+    # async def add_penalty(self, callback: types.CallbackQuery, state: FSMContext):
+    #     await callback.message.edit_text(TeacherMessages.ENTER_PENALTY_REASON)
+    #     await state.set_state(ShowClientPenaltyCard.get_penalty_reasons)
+    #
+    # async def insert_added_penalty(self, message: types.Message, state: FSMContext, bot: Bot):
+    #     data = await state.get_data()
+    #     reasons = message.text
+    #     to_add = [data['idt'], reasons]
+    #     database.execute("Insert into penalty values (NULL, ?, ? )", to_add)
+    #     await message.answer(TeacherMessages.PENALTY_ADDED)
+    #     await self.penalty_card(message, state, bot, data['idt'])
+    #
+    # async def remove_penalty(self, callback: types.CallbackQuery, state: FSMContext, bot: Bot):
+    #     await callback.message.answer(TeacherMessages.ENTER_PENALTY_ID_TO_DELETE)
+    #     await state.update_data(msg_to_delete=[callback.message.message_id])
+    #     await state.set_state(ShowClientPenaltyCard.get_penalty_id_to_delete)
+    #
+    # async def delete_removed_penalty(self, message: types.Message, state: FSMContext, bot: Bot):
+    #     data = await state.get_data()
+    #
+    #     if not message.text.isdigit():
+    #         await message.answer(TeacherMessages.ONLY_NUMBERS_ALLOWED)
+    #         return self.delete_removed_penalty
+    #
+    #     database.execute("delete from penalty where id=?", (message.text,))
+    #
+    #     for msg in data['msg_to_delete']:
+    #         await bot.delete_message(message.from_user.id, msg)
+    #
+    #     await message.answer(TeacherMessages.PENALTY_DELETED)
+    #     await self.penalty_card(message, state, bot, data['idt'])
+    #
+    # async def back_to_penalties_teacher(self, callback: types.CallbackQuery, state: FSMContext, bot: Bot):
+    #     await self.all_users_penalties_show(callback, state)
 
-        for idt, name in names_ids.items():
-            number_of_penalties = database.fetchall("Select count(id) from penalty where idt=?", (str(idt),))
-            message_to_send += f"{name[0]} {name[1]} | {idt} | {number_of_penalties[-1]}\n"
 
-        return message_to_send
+class OperatorManagerStudentCards(OperatorManager):
+    def __init__(self, operator: Operator):
+        super().__init__(operator)
 
-    async def all_users_penalties_show(self, callback_message: Union[types.Message, types.CallbackQuery],
-                                       state: FSMContext):
-        if isinstance(callback_message, types.Message):
-            await callback_message.answer(self.__form_the_message_with_penalties(),
-                                          reply_markup=keyboards.keyboard_back_to_main_teacher())
-            await state.update_data(prev_msg_id=callback_message.message_id)
+    async def show_client_card(self, callback: types.CallbackQuery, state: FSMContext):
+        idt = int(callback.data.split("_")[-1])
+        message_id = callback.message.message_id
 
-        if isinstance(callback_message, types.CallbackQuery):
-            await callback_message.message.edit_text(self.__form_the_message_with_penalties(),
-                                                     reply_markup=keyboards.keyboard_back_to_main_teacher())
-            await state.update_data(prev_msg_id=callback_message.message.message_id)
-
-        await state.set_state(ShowClientPenaltyCard.get_client_id)
-
-    async def penalty_card(self, message, state, bot, idt):
         client = Client(idt, "qw")
 
-        penalties = client.get_penalties()
+        client_card = client.full_card()
 
-        message_to_send = "<b>ID | Причина</b>\n"
-        message_to_send += penalties
+        await callback.message.delete()
 
-        await message.delete()
+        await callback.message.answer(client_card, reply_markup=keyboards.keyboard_student_card_actions())
 
-        await message.answer(message_to_send, reply_markup=keyboards.keyboard_penalty_card_teacher())
+        await state.update_data(idt=idt)
+        await state.update_data(prev_msg_id=message_id)
+        await state.set_state(ShowClientCard.further_actions)
 
-        await state.update_data(prev_msg_id=message.message_id)
-        await state.set_state(ShowClientPenaltyCard.further_actions)
-
-    # async def penalty(callback: types.CallbackQuery, state: FSMContext):
-    #     await all_users_penalties_show(callback, state)
-
-    async def show_penalty_card(self, message: types.Message, state: FSMContext, bot: Bot):
+    async def change_task(self, message: types.Message, state: FSMContext, task_number: int):
         data = await state.get_data()
-        await bot.delete_message(message.from_user.id, data['prev_msg_id'])
-        await self.penalty_card(message, state, bot, message.text)
-        await state.update_data(idt=message.text)
+        task_field = "task_first" if task_number == 1 else "task_second"
+        task_id = database.last_added_id(data["idt"])
 
-    async def add_penalty(self, callback: types.CallbackQuery, state: FSMContext):
-        await callback.message.edit_text(TeacherMessages.ENTER_PENALTY_REASON)
-        await state.set_state(ShowClientPenaltyCard.get_penalty_reasons)
+        database.execute(
+            f"UPDATE tasks SET {task_field} = ? WHERE id = ? AND (status = 1 OR status = 5)",
+            (message.text, task_id)
+        )
 
-    async def insert_added_penalty(self, message: types.Message, state: FSMContext, bot: Bot):
+        await message.answer(f"✅ Задание {task_number} изменено", reply_markup=keyboards.keyboard_main_teacher())
+        await message.bot.send_message(data["idt"], f"🛠 Задание {task_number} обновлено оператором")
+        await state.clear()
+
+    async def set_all_tasks(self, message: types.Message, state: FSMContext, task_one: str, task_two: str):
         data = await state.get_data()
-        reasons = message.text
-        to_add = [data['idt'], reasons]
-        database.execute("Insert into penalty values (NULL, ?, ? )", to_add)
-        await message.answer(TeacherMessages.PENALTY_ADDED)
-        await self.penalty_card(message, state, bot, data['idt'])
+        now = datetime.datetime.now(timezone.utc)
 
-    async def remove_penalty(self, callback: types.CallbackQuery, state: FSMContext, bot: Bot):
-        await callback.message.answer(TeacherMessages.ENTER_PENALTY_ID_TO_DELETE)
-        await state.update_data(msg_to_delete=[callback.message.message_id])
-        await state.set_state(ShowClientPenaltyCard.get_penalty_id_to_delete)
+        to_insert = [(int(data["idt"]), task_one, task_two, now.strftime("%Y-%m-%d %H:%M:%S"), 1, 0)]
 
-    async def delete_removed_penalty(self, message: types.Message, state: FSMContext, bot: Bot):
+        database.execute(
+            "INSERT INTO tasks VALUES (NULL, ?, ?, ?, ?, ?, ?)", to_insert
+        )
+
+        request_id = database.fetchall("SELECT id FROM tasks WHERE idt=?", (data['idt'],))[-1]
+
+        await message.answer(StudentMessages.SUCESSFULLY_ADDED_TASKS.format(request_id=request_id),
+                             reply_markup=keyboards.keyboard_main_teacher())
+        await state.clear()
+
+    async def add_penalty(self, message: types.Message, state: FSMContext, reason: str):
         data = await state.get_data()
+        database.execute("INSERT INTO penalty VALUES (NULL, ?, ?)", (data["idt"], reason))
+        await message.answer("✅ Штраф добавлен", reply_markup=keyboards.keyboard_main_teacher())
 
-        if not message.text.isdigit():
-            await message.answer(TeacherMessages.ONLY_NUMBERS_ALLOWED)
-            return self.delete_removed_penalty
+    async def remove_penalty(self, message: types.Message, penalty_id: int):
+        database.execute("DELETE FROM penalty WHERE id = ?", (penalty_id,))
+        await message.answer("✅ Штраф удалён", reply_markup=keyboards.keyboard_main_teacher())
 
-        database.execute("delete from penalty where id=?", (message.text,))
+    async def back_to_main_teacher(self, callback: types.CallbackQuery, state: FSMContext):
+        await callback.message.edit_text(
+            TeacherMessages.CHOOSE_MAIN_TEACHER,
+            reply_markup=keyboards.keyboard_main_teacher(),
+            parse_mode=ParseMode.HTML
+        )
+        await callback.answer()
+        await state.clear()
 
-        for msg in data['msg_to_delete']:
-            await bot.delete_message(message.from_user.id, msg)
 
-        await message.answer(TeacherMessages.PENALTY_DELETED)
-        await self.penalty_card(message, state, bot, data['idt'])
+class OperatorManagerEquipment(OperatorManager):
+    def __init__(self, operator: Operator):
+        super().__init__(operator)
 
-    async def back_to_penalties_teacher(self, callback: types.CallbackQuery, state: FSMContext, bot: Bot):
-        await self.all_users_penalties_show(callback, state)
+    async def show_bucket(callback: types.CallbackQuery, state: FSMContext):
+        None
+
+    async def inventory_add_start(callback: types.CallbackQuery, state: FSMContext):
+        None
+
+    async def process_inventory_add(message: types.Message, state: FSMContext):
+        None
+
+    async def process_alias_lookup(message: types.Message, state: FSMContext):
+        None
+
+    async def transfer_item(callback: types.CallbackQuery, state: FSMContext):
+        None
+
+    async def process_transfer_item(message: types.Message, state: FSMContext):
+        None
+
+    async def return_item(callback: types.CallbackQuery, state: FSMContext):
+        None
+
+    async def process_return_item(message: types.Message, state: FSMContext):
+        None
+
+    async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
+        None

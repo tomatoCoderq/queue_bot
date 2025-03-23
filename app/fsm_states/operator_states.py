@@ -15,6 +15,22 @@ class ShowClientPenaltyCard(StatesGroup):
     get_penalty_id_to_delete = State()
 
 
+class ShowClientCard(StatesGroup):
+    set_tasks_two = State()
+    set_tasks_one = State()
+    get_client_id = State()
+    get_changed_task = State()
+    further_actions = State()
+    get_penalty_reasons = State()
+    get_penalty_id_to_delete = State()
+
+
 class ReturnToQueue(StatesGroup):
     waiting_id = State()
     waiting_approve_reject = State()
+
+
+class ItemActionState(StatesGroup):
+    waiting_for_transfer_info = State()
+    waiting_for_return_info = State()
+

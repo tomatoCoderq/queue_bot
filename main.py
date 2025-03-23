@@ -26,6 +26,7 @@ from app.handlers import teacher_tasks_queue
 from app.handlers import penalty
 from app.handlers import details
 from app.handlers import details_client
+from app.handlers import operator_students_cards
 
 from xlsxwriter.workbook import Workbook
 
@@ -78,12 +79,13 @@ async def main():
     dp.include_router(start.router)
     dp.include_router(student_queue.router)
     dp.include_router(test_handlers.router)
-    dp.include_router(add_tasks.router)
-    dp.include_router(teacher_proceed_tasks.router)
-    dp.include_router(teacher_tasks_queue.router)
+    # dp.include_router(add_tasks.router)
+    # dp.include_router(teacher_proceed_tasks.router)
+    # dp.include_router(teacher_tasks_queue.router)
     dp.include_router(penalty.router)
     dp.include_router(details.router)
     dp.include_router(details_client.router)
+    dp.include_router(operator_students_cards.router)
 
 
     # Dispatchers from all handlers

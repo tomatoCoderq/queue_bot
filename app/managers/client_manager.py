@@ -162,3 +162,14 @@ class ClientManager:
 
 class ClientManagerTasks:
     None
+
+class ClientManagerEquipment(ClientManager):
+    def __init__(self, client: Client):
+        super().__init__(client)
+
+    async def show_inventory(callback: types.CallbackQuery, state: FSMContext):
+        None
+
+    async def back_to_menu(callback: types.CallbackQuery, state: FSMContext):
+        None
+

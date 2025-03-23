@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Union
+
 from app.models.base_user import BaseUser
 from app.utils.database import database
 from app.utils.messages import StudentMessages
@@ -11,7 +13,7 @@ class Client(BaseUser):
     penalties: list[list]
     tasks: str
 
-    def __init__(self, telegram_id: int, username: str):
+    def __init__(self, telegram_id: Union[int, str], username: str):
         super().__init__(telegram_id, username, role="student")
 
         self.name, self.surname = self.__set_name_and_surname()
@@ -50,11 +52,13 @@ class Client(BaseUser):
         to_return = ""
 
         if len(self.penalties) == 0:
-            return "Здесь пусто"
+            return "Здесь пусто\n"
 
-        for penalty in self.penalties:
-            print(penalty)
-            to_return += f"<b>ID:</b> {penalty[0]} | {penalty[1]}\n"
+        for i in range(len(self.penalties)):
+            if i % 2 != 0:
+                to_return += f"<b>ID:</b> {self.penalties[i][0]} | {self.penalties[i][1]}\n"
+            else:
+                to_return += f"<b>ID:</b> {self.penalties[i][0]} | {self.penalties[i][1]} / "
 
         return to_return
 
