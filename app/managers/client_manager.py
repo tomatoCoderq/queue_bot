@@ -10,6 +10,7 @@ from aiogram import Bot, types
 from loguru import logger
 
 from app.utils.database import database
+from app.utils.excel_writer import create_idt_name_map
 from app.utils.files import delete_file
 from app.utils.messages import StudentMessages
 
@@ -199,6 +200,17 @@ class ClientManagerDetails(ClientManager):
         request_id = database.fetchall("SELECT id FROM requests_queue")[-1]
 
         await self.rename_file(data['old_file_name'], message, state)
+
+        if "to_approve_urgency" in data.keys():
+            names = create_idt_name_map()
+            # idt = database.fetchall("SELECT idt FROM users WHERE proceeed=1 or proceeed=0")
+            for teacher in database.fetchall("SELECT idt FROM users WHERE role='teacher'"):
+                print(teacher)
+                await message.bot.send_message(
+                    teacher,
+                    f"запрос {request_id} от {names[message.from_user.id][0]} {names[message.from_user.id][1]}",
+                    reply_markup=keyboards.keyboard_process_high_urgency_teacher()
+                )
 
         await message.reply(
             StudentMessages.request_queued.format(request_id=request_id),
