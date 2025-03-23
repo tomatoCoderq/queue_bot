@@ -74,7 +74,7 @@ class CallbackDataKeys:
     remove_penalty = "remove_penalty"
     add_tasks_to_student = "add_tasks_to_student"
 
-    BACK_TO_MAIN = "back_to_main"
+    # BACK_TO_MAIN = "back_to_main"
     INVENTORY_ADD = "inventory_add"
     BACK_TO_INVENTORY = "back_to_inventory"
     TRANSFER_ITEM = "transfer_item"
@@ -91,16 +91,17 @@ def keyboard_start_registration():
     ]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
-#TODO: change callback data and put into vars
+
+# TODO: change callback data and put into vars
 def keyboard_student_card_actions():
     buttons = [
-        [types.InlineKeyboardButton(text="Задание 1️⃣", callback_data="t1"),
-         types.InlineKeyboardButton(text="Задание 2️⃣", callback_data="t2")],
-        [types.InlineKeyboardButton(text="Установить задания 🔢", callback_data="settask"),
-         types.InlineKeyboardButton(text="Отклонить задания🙅‍♂️", callback_data="removetask")],
+        # [types.InlineKeyboardButton(text="Задание 1️⃣", callback_data="t1"),
+        #  types.InlineKeyboardButton(text="Задание 2️⃣", callback_data="t2")],
+        # [types.InlineKeyboardButton(text="Установить задания 🔢", callback_data="settask"),
+        #  types.InlineKeyboardButton(text="Отклонить задания🙅‍♂️", callback_data="removetask")],
         [types.InlineKeyboardButton(text="Добавить штраф⚖️", callback_data="setpenalty"),
          types.InlineKeyboardButton(text="Убрать штраф↩️", callback_data="removepenalty")],
-        [types.InlineKeyboardButton(text="Назад⬅️", callback_data="bk")]
+        [types.InlineKeyboardButton(text="Назад⬅️", callback_data="back_to_list_of_students")]
     ]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -109,8 +110,8 @@ def keyboard_main_student():
     buttons = [
         [types.InlineKeyboardButton(text=KeyboardTitles.upload_detail, callback_data=CallbackDataKeys.upload_detail)],
         [types.InlineKeyboardButton(text=KeyboardTitles.task_queue, callback_data=CallbackDataKeys.details_queue)],
-        [types.InlineKeyboardButton(text=KeyboardTitles.tasks, callback_data=CallbackDataKeys.tasks)],
-        [types.InlineKeyboardButton(text="📦Инвентарь", callback_data="student_equipment")]
+        # [types.InlineKeyboardButton(text=KeyboardTitles.tasks, callback_data=CallbackDataKeys.tasks)],
+        [types.InlineKeyboardButton(text="📦Комплектующие", callback_data="student_equipment")]
     ]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -181,7 +182,7 @@ def keyboard_main_teacher():
         #                             callback_data=CallbackDataKeys.client_tasks)],
         # [types.InlineKeyboardButton(text=KeyboardTitles.penalties,
         #                             callback_data=CallbackDataKeys.penalties)],
-        [types.InlineKeyboardButton(text="📦Инвентарь", callback_data="teacher_equipment")]
+        [types.InlineKeyboardButton(text="📦Комплектующие", callback_data="teacher_equipment")]
     ]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -295,5 +296,50 @@ def keyboard_back_to_details_teacher():
     buttons = [
         [types.InlineKeyboardButton(text=KeyboardTitles.back_to_main_teacher,
                                     callback_data=CallbackDataKeys.back_to_details_teacher)]
+    ]
+    return types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def keyboard_inventory():
+    buttons = [
+        [types.InlineKeyboardButton(text=KeyboardTitles.ADD_DETAIL, callback_data=CallbackDataKeys.INVENTORY_ADD)],
+        [types.InlineKeyboardButton(text=KeyboardTitles.BACK, callback_data="back_to_inventory")]
+    ]
+    return types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def keyboard_alias_back():
+    return types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [types.InlineKeyboardButton(text=KeyboardTitles.BACK, callback_data=CallbackDataKeys.BACK_TO_INVENTORY)]]
+    )
+
+# def keyboard_inventory():
+#     buttons = [
+#         [types.InlineKeyboardButton(text="➕ Добавить", callback_data="inventory_add")],
+#         # [types.InlineKeyboardButton(text="🛒 Корзина", callback_data="inventory_bucket")],
+#         [types.InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_main")]
+#     ]
+#     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def keyboard_alias_back():
+    buttons = [
+        [types.InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_inventory")]
+    ]
+    return types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def keyboard_alias_back_student():
+    buttons = [
+        [types.InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_inventory_student")]
+    ]
+    return types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def keyboard_transfer_return():
+    buttons = [
+        [types.InlineKeyboardButton(text="🔄 Передать", callback_data="transfer_item")],
+        [types.InlineKeyboardButton(text="↩️ Вернуть", callback_data="return_item")],
+        [types.InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_inventory")]
     ]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)

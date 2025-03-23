@@ -3,30 +3,47 @@ import datetime
 
 from aiogram.enums import ParseMode
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
-from aiogram import F, Dispatcher
-from aiogram.filters import StateFilter, Command
 
+from app.models.operator import Operator
 from app.utils import keyboards
-from aiogram import Bot, types, Router
+from aiogram import Bot, types
 from loguru import logger
-from aiogram.filters import BaseFilter
 
 from app.utils.database import database
-from app.utils.keyboards import CallbackDataKeys
-# from main import dp
-from app.utils.filters import IsStudent
+from app.utils.files import delete_file
 from app.utils.messages import StudentMessages
 
 from app.models.client import Client
 
-from app.fsm_states.client_states import SendPiece
+from app.fsm_states.client_states import SendPiece, DeleteOwnQueue
 
 
-# --- StudentManager Class ---
 class ClientManager:
     def __init__(self, client: Client):
         self.client = client
+
+    def _generate_message_with_details(self, students_messages) -> str:
+        message_to_send = [
+            (f"<b>ID</b>: {students_messages[i][0]}\n"
+             f"<b>Файл</b>: {students_messages[i][8]}.{students_messages[i][3]}\n"
+             f"<b>Статус</b>: {Operator.status_int_to_str(students_messages[i][4])}\n---\n") for i in
+            range(len(students_messages))]
+
+        s = ('Если вы хотите удалить один из своих запросов, введите его ID! '
+             'Удаляйте только неудачные или неправильно отправленные детали.\n'
+             'Очередь заданий: \n---\n')
+        if len(message_to_send) == 0:
+            s += "Очередь заданий пуста!"
+        else:
+            for a in message_to_send:
+                s += a
+        return s
+
+
+# --- StudentManager Class ---
+class ClientManagerDetails(ClientManager):
+    def __init__(self, client: Client):
+        super().__init__(client)
 
     async def cancel_upload(self, message: types.Message, state: FSMContext):
         """Cancel the current upload process and return to main student menu."""
@@ -86,38 +103,22 @@ class ClientManager:
             logger.error(f"Wrong file type: {file_type}")
             await message.reply(StudentMessages.invalid_file_extension, parse_mode=ParseMode.HTML)
             return
-        data = await state.get_data()
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        # Prepare values for insertion into the requests_queue table.
-        to_add = [
-            self.client.telegram_id,
-            data["urgency"],
-            file_type,
-            0,  # initial status
-            now_str,
-            data["text"],
-            data["amount"],
-            message.document.file_name[:-4],
-            0,  # shift count
-            0  # additional field if needed
-        ]
-        database.execute(
-            "INSERT INTO requests_queue VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            to_add,
-        )
-        logger.success(f"Added request from {message.from_user.username} to requests_queue")
-        # Retrieve the new request ID (assumed to be the last inserted).
-        request_id = database.fetchall("SELECT id FROM requests_queue")[-1]
-        await message.reply(
-            StudentMessages.request_queued.format(request_id=request_id),
-            parse_mode=ParseMode.HTML,
-            reply_markup=keyboards.keyboard_main_student()
-        )
-        await self.download_file(message, bot)
-        await state.clear()
+
+        await state.update_data(file_type=message.document.file_name[-3:].lower())
+        await state.update_data(file_name=message.document.file_name[:-4])
+
+        if file_type == "stl":
+            await message.answer("<b>Укажите вес детали (его можно посмотреть в слайсере) (в граммах)</b>:", parse_mode=ParseMode.HTML)
+        else:
+            await message.answer("<b>Укажите размеры прямоугольника, который вы используете для вырезания детали, в мм (ширина высота)</b>, например: <i>150 200</i>",
+                                 parse_mode=ParseMode.HTML)
+        old_file_name = await self.download_file(message, bot)
+        await state.update_data(old_file_name=old_file_name)
+
+        await state.set_state(SendPiece.waiting_param)
         logger.info("SendPiece FSM cleared after file upload.")
 
-    async def download_file(self, message: types.Message, bot: Bot) -> None:
+    async def download_file(self, message: types.Message, bot: Bot) -> str:
         """Download the student's file into a local directory."""
         student_dir = f"students_files/{message.from_user.id}"
         if not os.path.exists(student_dir):
@@ -134,21 +135,80 @@ class ClientManager:
         await bot.download(message.document, file_name)
         logger.success("File successfully downloaded.")
 
-    async def back_to_main_student(self, callback: types.CallbackQuery, state: FSMContext):
-        """Return the student to the main menu."""
-        await callback.message.edit_text(
-            StudentMessages.choose_next_action,
-            reply_markup=keyboards.keyboard_main_student(),
-            parse_mode=ParseMode.HTML
+        return file_name
+
+    async def rename_file(self, old_file_name, message: types.Message, state: FSMContext):
+        """Download the student's file into a local directory."""
+        student_dir = f"students_files/{message.from_user.id}"
+        if not os.path.exists(student_dir):
+            os.makedirs(student_dir)
+            logger.info(f"Created directory: {student_dir}")
+        try:
+            request_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0 or proceeed=1")
+            message_id = request_ids[-1]
+        except IndexError:
+            logger.error("Error obtaining request ID for file download!")
+            message_id = "unknown"
+
+        data = await state.get_data()
+
+        file_name = f"{student_dir}/{message_id}?{datetime.date.today()}!{data['file_name']}.{data['file_type']}"
+
+        os.rename(old_file_name, file_name)
+        logger.success("File successfully renamed.")
+
+    async def process_detail_parameter(self, message: types.Message, state: FSMContext):
+        data = await state.get_data()
+        file_type = data.get("file_type")
+
+        if file_type == "stl":
+            if not message.text.isdigit():
+                await message.answer("❌ Введите числовое значение веса (в граммах).")
+                return
+            value = int(message.text)
+        elif file_type == "dxf":
+            parts = message.text.strip().split()
+            if len(parts) != 2 or not all(part.isdigit() for part in parts):
+                await message.answer("❌ Введите два числа: ширину и высоту в мм.")
+                return
+            width, height = map(int, parts)
+            value = width * height  # Area
+
+        data = await state.get_data()
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        to_add = [
+            self.client.telegram_id,
+            data["urgency"],
+            file_type,
+            0,  # initial status
+            now_str,
+            data["text"],
+            data["amount"],
+            data["file_name"],
+            value,
+            0  # additional field if needed
+        ]
+
+        database.execute(
+            "INSERT INTO requests_queue VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            to_add,
         )
+        logger.success(f"Added request from {message.from_user.username} to requests_queue")
+
+        request_id = database.fetchall("SELECT id FROM requests_queue")[-1]
+
+        await self.rename_file(data['old_file_name'], message, state)
+
+        await message.reply(
+            StudentMessages.request_queued.format(request_id=request_id),
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboards.keyboard_main_student()
+        )
+
         await state.clear()
-        await callback.answer()
 
     async def process_high_urgency_decision(self, callback: types.CallbackQuery):
-        """
-        Process high urgency confirmation/rejection from a callback.
-        (This example assumes the request ID is extracted from the message text.)
-        """
         if callback.data == "confirm_high_urgency":
             id_to_change = callback.message.text.split()[1]
             database.execute("UPDATE requests_queue SET urgency=? WHERE id=?", (1, id_to_change))
@@ -159,17 +219,76 @@ class ClientManager:
             await callback.answer(StudentMessages.HIGH_URGENCY_REJECTED)
             await callback.message.delete()
 
+    async def student_requests(self, callback: types.CallbackQuery, state: FSMContext):
+        students_messages = database.fetchall_multiple(f"SELECT * FROM requests_queue "
+                                                       f"WHERE proceeed!=2 and proceeed!=4 "
+                                                       f"AND idt={callback.from_user.id}")
+
+        await callback.message.edit_text(self._generate_message_with_details(students_messages),
+                                         reply_markup=keyboards.keyboard_back_to_main_student(),
+                                         parse_mode=ParseMode.HTML)
+        await callback.answer()
+        await state.set_state(DeleteOwnQueue.get_id_to_delete)
+        await state.update_data(msg_id=callback.message.message_id)
+
+    async def get_id_to_delete(self, message: types.Message, state: FSMContext, bot: Bot):
+        messages_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0")
+        data = await state.get_data()
+
+        if not message.text.isdigit() or int(message.text) not in messages_ids:
+            await message.reply(StudentMessages.NO_ID_FOUND, parse_mode=ParseMode.HTML)
+            logger.error(f"Wrong id was written by {message.from_user.username}")
+            return self.get_id_to_delete
+
+        await bot.delete_message(message.chat.id, data['msg_id'])
+        # await message.delete()
+        delete_file({"id": int(message.text)})
+        database.execute(f"UPDATE requests_queue SET proceeed=2 WHERE id=?", (message.text,))
+        await message.answer(StudentMessages.SUCESSFULLY_DELETED, reply_markup=keyboards.keyboard_main_student())
+        await state.clear()
+
+    # async def back_to_main_menu(callback: types.CallbackQuery, state: FSMContext):
+    #     await callback.message.edit_text("Выбирайте, <b>Клиент!</b>",
+    #                                      reply_markup=keyboards.keyboard_main_student(), parse_mode=ParseMode.HTML)
+    #     await callback.answer()
+    #     await state.clear()
+
 
 class ClientManagerTasks:
     None
+
 
 class ClientManagerEquipment(ClientManager):
     def __init__(self, client: Client):
         super().__init__(client)
 
-    async def show_inventory(callback: types.CallbackQuery, state: FSMContext):
-        None
+    async def show_inventory(self, callback: types.CallbackQuery, state: FSMContext):
+        user_id = callback.from_user.id
+        details = database.fetchall_multiple("SELECT * FROM details WHERE owner = ?", (user_id,))
 
-    async def back_to_menu(callback: types.CallbackQuery, state: FSMContext):
-        None
+        if not details:
+            await callback.message.answer(
+                StudentMessages.NO_EQUIPMENT_FOUND,
+                parse_mode=ParseMode.HTML,
+                reply_markup=keyboards.keyboard_alias_back_student()
+            )
+        else:
+            equipment_message = StudentMessages.YOUR_EQUIPMENT_HEADER
+            for detail in details:
+                detail_id, name, price, owner = detail
+                equipment_message += StudentMessages.EQUIPMENT_ITEM_FORMAT.format(
+                    detail_id=detail_id, name=name, price=price)
+            await callback.message.edit_text(
+                equipment_message,
+                parse_mode=ParseMode.HTML,
+                reply_markup=keyboards.keyboard_alias_back_student()
+            )
+        await callback.answer()
 
+    # async def back_to_menu(self, callback: types.CallbackQuery, state: FSMContext):
+    #     await callback.message.edit_text(
+    #         StudentMessages.choose_next_action,
+    #         reply_markup=keyboards.keyboard_main_student(),
+    #         parse_mode=ParseMode.HTML
+    #     )
+    #     await callback.answer()

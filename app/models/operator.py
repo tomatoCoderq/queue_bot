@@ -1,18 +1,16 @@
+from typing import Union
+
 from app.utils.database import database
 from app.models.base_user import BaseUser
 
 
 # Teacher Class: Inherits BaseUser and fixes role as 'teacher'
 class Operator(BaseUser):
-    def __init__(self, telegram_id: int, username: str):
-        super().__init__(telegram_id, username, role="teacher")
+    def __init__(self, telegram_id: Union[int, str]):
+        super().__init__(telegram_id, role="teacher")
 
     @staticmethod
     def get_idt_name_map() -> dict:
-        """
-        Returns a mapping from client IDs to (name, surname)
-        by joining requests_queue and students.
-        """
         database.execute("""
             SELECT requests_queue.idt, students.name, students.surname 
             FROM requests_queue 

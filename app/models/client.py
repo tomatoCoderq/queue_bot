@@ -10,12 +10,13 @@ from app.utils.messages import StudentMessages
 class Client(BaseUser):
     name: str
     surname: str
+    username: str
     penalties: list[list]
     tasks: str
 
-    def __init__(self, telegram_id: Union[int, str], username: str):
-        super().__init__(telegram_id, username, role="student")
-
+    def __init__(self, telegram_id: Union[int, str]):
+        super().__init__(telegram_id, role="student")
+        self.username = self._get_username_by_telegram_id(telegram_id)
         self.name, self.surname = self.__set_name_and_surname()
         self.penalties = self.__set_penalties()
         self.tasks = self.__get_tasks()
@@ -23,10 +24,10 @@ class Client(BaseUser):
         # details as list (on the same screen or after pressing button)
 
     def __set_name_and_surname(self):
-        return database.fetchall_multiple("SELECT name, surname FROM students WHERE idt=?", (self.telegram_id, ))[-1]
+        return database.fetchall_multiple("SELECT name, surname FROM students WHERE idt=?", (self.telegram_id,))[-1]
 
     def __set_penalties(self):
-        return database.fetchall_multiple("SELECT id, reason FROM penalty WHERE idt=?", (str(self.telegram_id),))
+        return database.fetchall_multiple("SELECT id, reason FROM penalty WHERE idt=?", (self.telegram_id,))
 
     def __get_tasks(self):
         query = database.fetchall_multiple(
@@ -65,9 +66,9 @@ class Client(BaseUser):
     def full_card(self) -> str:
         return (f"<b>{self.name} {self.surname}</b>\n"
                 f"---\n"
-                f"Штрафы: \n"
+                f"<b>Штрафы:</b> \n"
                 f"{self.get_penalties()}"
-                f"Задачи: \n"
+                f"\n<b>Задачи:</b> \n"
                 f"{self.tasks}")
 
         # return f"{self.name} {self.surname}"

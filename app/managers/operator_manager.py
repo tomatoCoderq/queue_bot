@@ -1,17 +1,124 @@
+import datetime
+import random
 from datetime import *
-from typing import Union
+from typing import Union, List
 
 import aiogram.exceptions
 from aiogram.types import FSInputFile
 
 from app.handlers.teacher_tasks_queue import map_names_and_idt
+from app.models.base_user import BaseUser
 from app.models.client import Client
 from app.utils.messages import TeacherMessages
 from app.utils.excel_writer import Excel
 from app.models.operator import Operator
 from app.utils.files import *
 
-from app.fsm_states.operator_states import CheckMessage, ShowClientPenaltyCard, ReturnToQueue, ShowClientCard
+from app.fsm_states.operator_states import CheckMessage, ShowClientPenaltyCard, ReturnToQueue, ShowClientCard, \
+    AliasLookupState, InventoryAddState, ItemActionState
+
+
+class Detail:
+    def __init__(self, name: str, price: float, detail_id: int = random.randint(1000, 9999)):
+        self.name = name
+        self.price = price
+        self.detail_id: int = detail_id
+
+    def __str__(self):
+        return f"{self.detail_id} {self.name} {self.price}"
+
+    def change_price(self, price: float):
+        self.price = price
+
+    def change_name(self, name: str):
+        self.name = name
+
+    def get_id(self) -> int:
+        return self.detail_id
+
+    @staticmethod
+    def detail_exists(detail_id: int) -> bool:
+        """Check if a detail with the given ID exists in the details table."""
+        result = database.fetchall("SELECT id FROM details WHERE id=?", (detail_id,))
+        return bool(result)
+
+
+class Bucket:
+    def __init__(self):
+        self.__bucket_array: List[Detail] = list()
+
+    def add_detail(self, detail: Detail):
+        self.__bucket_array.append(detail)
+
+    def remove_detail(self, detail_id: int):
+        for detail in self.__bucket_array:
+            if detail.get_id() == detail_id:
+                self.__bucket_array.remove(detail)
+
+    def get_details(self):
+        return self.__bucket_array
+
+
+class OperatorDetails(Operator):
+    def __init__(self, telegram_id: str):
+        super().__init__(telegram_id)
+        self.bucket = Bucket()
+
+    @staticmethod
+    def __generate_alias(name: str) -> str:
+        vowels = "aeiouAEIOU"
+        words = name.split()
+        if len(words) >= 2:
+            # Take first 3 letters of the first word.
+            first_part = words[0][:3].upper() if len(words[0]) >= 3 else words[0].upper()
+            # For the second word, take the first letter plus the first non-vowel after it.
+            second_word = words[1]
+            second_part = second_word[0].upper()
+            for ch in second_word[1:]:
+                if ch not in vowels:
+                    second_part += ch.upper()
+                    break
+            return first_part + second_part
+        else:
+            # For a single-word name, simply take the first 5 characters.
+            return name[:5].upper()
+
+    def __form_message_with_details(self):
+        details_list = self.get_all_details()
+        formed_string = ""
+        for detail in details_list:
+            # Placeholder for further grouping or formatting.
+            pass
+
+    @staticmethod
+    def add_details_to_bucket(detail: Detail):
+        alias = OperatorDetails.__generate_alias(detail.name)
+
+        existing = database.fetchall("SELECT alias FROM detail_aliases WHERE name=?", (detail.name,))
+        if not existing:
+            database.execute("INSERT INTO detail_aliases VALUES (?, ?)", (detail.name, alias))
+
+        database.execute("INSERT INTO details VALUES (NULL, ?, ?, NULL)", (detail.name, detail.price))
+
+    def remove_details_from_bucket(self, detail_id: str):
+        database.execute("DELETE FROM details WHERE id=?", (detail_id,))
+
+    def get_all_details(self) -> List[Detail]:
+        details = database.fetchall_multiple("SELECT * FROM details")
+        details_list: List[Detail] = list()
+        for detail in details:
+            details_list.append(Detail(
+                name=detail[1],
+                price=detail[2],
+                detail_id=detail[0]
+            ))
+        return details_list
+
+    def move_detail_to_client(self, detail_id: str, client_telegram_id: str):
+        database.execute("UPDATE details SET owner=? WHERE id=?", (client_telegram_id, detail_id))
+
+    def take_detail_from_client(self, detail_id: str):
+        database.execute("UPDATE details SET owner=NULL WHERE id=?", (detail_id,))
 
 
 class OperatorManager:
@@ -51,6 +158,7 @@ class OperatorManagerDetails(OperatorManager):
     async def cancel_process(self, message: types.Message, state: FSMContext):
         """Cancel current operation and return to the main teacher menu."""
         await self.operator.send_message(
+            self.operator.telegram_id,
             bot=message.bot,
             text=TeacherMessages.CANCEL_PROCESS,
             reply_markup=keyboards.keyboard_main_teacher(),
@@ -88,14 +196,22 @@ class OperatorManagerDetails(OperatorManager):
         return header + "".join(response)
 
     async def check_messages(self, callback: types.CallbackQuery, state: FSMContext, bot: Bot):
-        """
-        Retrieve and display current student requests to teacher.
-        Updates state with the message ID for later deletion.
-        """
+        sort_key = callback.data.replace("sort_", "") if callback.data.startswith("sort_") else None
+
         students_messages = database.fetchall_multiple(
             "SELECT * FROM requests_queue WHERE proceeed=0 OR proceeed=1"
         )
+
+        # Sort based on the selected key
+        if sort_key == "type":
+            students_messages.sort(key=lambda x: x[3])  # ID is at index 0
+        elif sort_key == "date":
+            students_messages.sort(key=lambda x: x[5])  # Date is at index 5
+        elif sort_key == "urgency":
+            students_messages.sort(key=lambda x: x[2], reverse=True)  # Urgency is at index 2
+
         s = self.generate_message_to_send(TeacherMessages.SELECT_REQUEST, students_messages)
+        # print(s)
         try:
             if callback.data == "check":
                 if len(s) > 4096:
@@ -106,10 +222,15 @@ class OperatorManagerDetails(OperatorManager):
                     msg = await callback.message.edit_text(
                         s, reply_markup=keyboards.keyboard_sort_teacher(), parse_mode=ParseMode.HTML
                     )
-            else:
+            elif callback.data == "back_to_queue":
                 await callback.message.delete()
                 msg = await callback.message.answer(
-                    s, reply_markup=keyboards.keyboard_details_teacher(), parse_mode=ParseMode.HTML
+                    s, reply_markup=keyboards.keyboard_sort_teacher(), parse_mode=ParseMode.HTML
+                )
+            else:
+                # await callback.message.delete()
+                msg = await callback.message.edit_text(
+                    s, reply_markup=keyboards.keyboard_sort_teacher(), parse_mode=ParseMode.HTML
                 )
         except aiogram.exceptions.TelegramBadRequest as e:
             logger.error(f"Error in check_messages: {e}")
@@ -132,14 +253,17 @@ class OperatorManagerDetails(OperatorManager):
             await message.reply(TeacherMessages.NO_ID_FOUND, parse_mode=ParseMode.HTML)
             logger.error(f"Wrong ID by {message.from_user.username}")
             return
+
         spdict = {messages_ids[i]: students_ids[i] for i in range(len(messages_ids))}
         data = await state.get_data()
+
         try:
             await bot.delete_message(message.from_user.id, data['msg'])
-            await message.delete()
+            # await message.delete()
         except Exception as e:
             await message.answer(TeacherMessages.ID_ERROR)
             logger.error(f"Error deleting messages: {e}")
+
         cidt_name_map = Operator.get_idt_name_map()
         message_to_send = ""
         for msg in messages_students:
@@ -152,6 +276,7 @@ class OperatorManagerDetails(OperatorManager):
                     f"<b>Дата отправки</b>: {msg[5]}\n"
                     f"<b>Комментарий</b>: {msg[6]}\n"
                     f"<b>Количество</b>: {msg[7]}\n"
+                    f"<b>Вес/Площадь</b>: {msg[9]}\n"
                 )
                 await state.update_data(id=msg[0], idt=msg[1], type=msg[3])
                 break
@@ -175,17 +300,18 @@ class OperatorManagerDetails(OperatorManager):
                 parse_mode=ParseMode.HTML,
             )
         await state.set_state(CheckMessage.waiting_action)
-        await state.update_data(msg=msg_obj.message_id)
-        logger.info(f"Set waiting_action with msg id {msg_obj.message_id}")
+        # await state.update_data(msg=msg_obj.message_id)
+        # logger.info(f"Set waiting_action with msg id {msg_obj.message_id}")
 
     async def accept_task(self, callback: types.CallbackQuery, bot: Bot, state: FSMContext):
         """Accept a task by updating its status and notifying the client."""
         data = await state.get_data()
+        print(data['idt'])
         messages_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0")
         if data['id'] in messages_ids:
             database.execute("UPDATE requests_queue SET proceeed=1 WHERE id=?", (data['id'],))
             logger.success("Task accepted")
-            await self.operator.send_message(bot, TeacherMessages.REQUEST_ACCEPTED.format(id=data['id']))
+            await self.operator.send_message(data['idt'], bot, TeacherMessages.REQUEST_ACCEPTED.format(id=data['id']))
             await callback.answer("Принято в работу", reply_markup=keyboards.keyboard_main_teacher())
         else:
             logger.error("Task already taken")
@@ -197,7 +323,7 @@ class OperatorManagerDetails(OperatorManager):
         data = await state.get_data()
         messages_ids = database.fetchall("SELECT id FROM requests_queue WHERE proceeed=0")
         if data['id'] in messages_ids:
-            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             database.execute("UPDATE requests_queue SET proceeed=4, close_time=? WHERE id=?",
                              (current_time, data['id']))
             logger.success("Task rejected")
@@ -232,41 +358,54 @@ class OperatorManagerDetails(OperatorManager):
     async def finish_work_get_params(self, message: types.Message, state: FSMContext):
         """Receive additional parameters (e.g., size or weight) and update the task."""
         data = await state.get_data()
-        if data['type'] == "stl" and not message.text.isdigit():
-            await message.answer(StudentMessages.INVALID_AMOUNT_INPUT)
-            return
-        if data['type'] == "dxf":
-            parts = message.text.split()
-            if len(parts) != 2 or not (parts[0].isdigit() and parts[1].isdigit()):
-                await message.answer(TeacherMessages.INVALID_SIZE_INPUT)
+
+        if message.text == "0":
+            await message.answer(TeacherMessages.SEND_PHOTO_REPORT)
+            await state.set_state(CheckMessage.waiting_photo_report)
+        else:
+            if data['type'] == "stl" and not message.text.isdigit():
+                await message.answer(StudentMessages.INVALID_AMOUNT_INPUT)
                 return
-        to_set = message.text if data['type'] == "stl" else int(parts[0]) * int(parts[1])
-        database.execute("UPDATE requests_queue SET params=? WHERE id=?", (to_set, data['id']))
-        await message.answer(TeacherMessages.SEND_PHOTO_REPORT)
-        await state.set_state(CheckMessage.waiting_photo_report)
+            if data['type'] == "dxf":
+                parts = message.text.split()
+                if len(parts) != 2 or not (parts[0].isdigit() and parts[1].isdigit()):
+                    await message.answer(TeacherMessages.INVALID_SIZE_INPUT)
+                    return
+
+            to_set = message.text if data['type'] == "stl" else int(parts[0]) * int(parts[1])
+            database.execute("UPDATE requests_queue SET params=? WHERE id=?", (to_set, data['id']))
+
+            await message.answer(TeacherMessages.SEND_PHOTO_REPORT)
+            await state.set_state(CheckMessage.waiting_photo_report)
 
     async def finish_work_report(self, message: types.Message, bot: Bot, state: FSMContext):
         """Finalize the task by generating an Excel report, moving files, and notifying the client."""
         data = await state.get_data()
+
         excel_table = Excel()
         await bot.delete_message(message.from_user.id, int(data['msg']))
+
         excel_table.write(database.fetchall_multiple("SELECT * FROM requests_queue WHERE id=?", (data['id'],)))
         move_file(data)
+
         database.execute("UPDATE requests_queue SET proceeed=2 WHERE id=?", (data['id'],))
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         file_name = f"temporal/{data['idt']}{current_time}.jpg"
         open(file_name, "w").close()
         await bot.download(message.photo[-1], file_name)
+
         await bot.send_photo(
             data['idt'],
             photo=types.FSInputFile(file_name),
             caption=f"Ваша работа с ID {data['id']} завершена!"
         )
+
         try:
             os.remove(file_name)
         except OSError as e:
             logger.error(f"Error removing temporary file: {e}")
         await self.operator.send_message(
+            self.operator.telegram_id,
             bot,
             TeacherMessages.PHOTO_SENT_TO_STUDENT,
             reply_markup=keyboards.keyboard_main_teacher(),
@@ -274,48 +413,6 @@ class OperatorManagerDetails(OperatorManager):
         )
         await state.clear()
         logger.success("Finished work report, state cleared.")
-
-    @staticmethod
-    async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
-        """Return to the main teacher menu."""
-        # await Operator.edit_message(bot=callback.bot,
-        #                                  text=TeacherMessages.CHOOSE_MAIN_TEACHER,
-        #                                  message_id=callback.message.message_id,
-        #                                  reply_markup=keyboards.keyboard_main_teacher())
-
-        await callback.message.edit_text(
-            TeacherMessages.CHOOSE_MAIN_TEACHER,
-            reply_markup=keyboards.keyboard_main_teacher()
-        )
-        await callback.answer()
-        await state.clear()
-
-    async def back_to_main_teacher_no_edit(self, callback: types.CallbackQuery, state: FSMContext):
-        await callback.message.delete()
-
-        await callback.message.answer(TeacherMessages.CHOOSE_MAIN_TEACHER,
-                                      reply_markup=keyboards.keyboard_main_teacher())
-        await state.clear()
-
-    async def back_to_details(self, callback: types.CallbackQuery, state: FSMContext):
-        """Return to the teacher details view."""
-        if callback.message.document:
-            await callback.message.answer(
-                TeacherMessages.CHOOSE_MAIN_TEACHER,
-                reply_markup=keyboards.keyboard_details_teacher()
-            )
-            await callback.message.delete()
-        else:
-            await self.operator.edit_message(bot=callback.bot,
-                                             text=TeacherMessages.CHOOSE_MAIN_TEACHER,
-                                             message_id=callback.message.message_id,
-                                             reply_markup=keyboards.keyboard_details_teacher())
-            # await callback.message.edit_text(
-            #     TeacherMessages.CHOOSE_MAIN_TEACHER,
-            #     reply_markup=keyboards.keyboard_details_teacher()
-            # )
-        await callback.answer()
-        await state.clear()
 
     async def get_xlsx(self, callback: types.CallbackQuery):
         await callback.message.delete()
@@ -427,9 +524,10 @@ class OperatorManagerStudentCards(OperatorManager):
 
     async def show_client_card(self, callback: types.CallbackQuery, state: FSMContext):
         idt = int(callback.data.split("_")[-1])
+
         message_id = callback.message.message_id
 
-        client = Client(idt, "qw")
+        client = Client(idt)
 
         client_card = client.full_card()
 
@@ -471,52 +569,232 @@ class OperatorManagerStudentCards(OperatorManager):
                              reply_markup=keyboards.keyboard_main_teacher())
         await state.clear()
 
-    async def add_penalty(self, message: types.Message, state: FSMContext, reason: str):
+    async def add_penalty(self, callback: types.CallbackQuery, state: FSMContext):
         data = await state.get_data()
-        database.execute("INSERT INTO penalty VALUES (NULL, ?, ?)", (data["idt"], reason))
-        await message.answer("✅ Штраф добавлен", reply_markup=keyboards.keyboard_main_teacher())
 
-    async def remove_penalty(self, message: types.Message, penalty_id: int):
-        database.execute("DELETE FROM penalty WHERE id = ?", (penalty_id,))
-        await message.answer("✅ Штраф удалён", reply_markup=keyboards.keyboard_main_teacher())
+        reason_map = {
+            "penalty_messy_desk": "Неубранное рабочее место",
+            "penalty_no_shoes": "Отсутствие второй обуви"
+        }
 
-    async def back_to_main_teacher(self, callback: types.CallbackQuery, state: FSMContext):
-        await callback.message.edit_text(
-            TeacherMessages.CHOOSE_MAIN_TEACHER,
-            reply_markup=keyboards.keyboard_main_teacher(),
-            parse_mode=ParseMode.HTML
+        database.execute("INSERT INTO penalty VALUES (NULL, ?, ?)", (data["idt"], reason_map[callback.data]))
+
+        client = Client(data['idt'])
+        client_card = client.full_card()
+
+        # await message.delete()
+        await callback.message.edit_text("✅ Штраф добавлен\n\n" + client_card, reply_markup=keyboards.keyboard_student_card_actions())
+
+        await state.set_state(ShowClientCard.further_actions)
+
+    async def remove_penalty(self, message: types.Message, penalty_id: int, state: FSMContext):
+        data = await state.get_data()
+
+        # Verify that the penalty exists and belongs to the current client
+        existing_penalty = database.fetchall(
+            "SELECT id FROM penalty WHERE id = ? AND idt = ?", (penalty_id, data["idt"])
         )
-        await callback.answer()
-        await state.clear()
+
+        if not existing_penalty:
+            await message.answer("❌ Штраф с таким ID не найден у этого пользователя.")
+            return
+
+        # Proceed with deletion if valid
+        database.execute("DELETE FROM penalty WHERE id = ?", (penalty_id,))
+
+        client = Client(data['idt'])
+        client_card = client.full_card()
+
+        await message.bot.delete_message(message.from_user.id, data["msg_id"])
+        await message.delete()
+        await message.answer("✅ Штраф удалён\n\n" + client_card, reply_markup=keyboards.keyboard_student_card_actions())
+
+        await state.set_state(ShowClientCard.further_actions)
 
 
 class OperatorManagerEquipment(OperatorManager):
     def __init__(self, operator: Operator):
         super().__init__(operator)
 
-    async def show_bucket(callback: types.CallbackQuery, state: FSMContext):
-        None
+    async def form_message_with_bucket(self, callback: Union[types.CallbackQuery, types.Message], state: FSMContext):
+        operator = OperatorDetails(str(callback.from_user.id))
+        details_list = operator.get_all_details()
 
-    async def inventory_add_start(callback: types.CallbackQuery, state: FSMContext):
-        None
+        detail_groups = {}
+        for detail in details_list:
+            detail_groups.setdefault(detail.name, []).append(detail)
 
-    async def process_inventory_add(message: types.Message, state: FSMContext):
-        None
+        summary_lines = []
+        for name, items in detail_groups.items():
+            alias_result = database.fetchall("SELECT alias FROM detail_aliases WHERE name=?", (name,))
+            alias = alias_result[0] if alias_result else name[:5].upper()
+            summary_lines.append(f"🔸 <b>{alias}</b> (<i>{name}</i>): <b>{len(items)}</b> шт.")
+        summary = "\n".join(summary_lines) if summary_lines else "<b>Нет деталей в инвентаре.</b>"
 
-    async def process_alias_lookup(message: types.Message, state: FSMContext):
-        None
+        if isinstance(callback, types.CallbackQuery):
+            await callback.message.edit_text(summary, parse_mode=ParseMode.HTML,
+                                             reply_markup=keyboards.keyboard_inventory())
+        else:
+            await callback.answer(summary, parse_mode=ParseMode.HTML, reply_markup=keyboards.keyboard_inventory())
 
-    async def transfer_item(callback: types.CallbackQuery, state: FSMContext):
-        None
+    async def show_bucket(self, callback: types.CallbackQuery, state: FSMContext):
+        await self.form_message_with_bucket(callback, state)
 
-    async def process_transfer_item(message: types.Message, state: FSMContext):
-        None
+        await state.set_state(AliasLookupState.waiting_for_alias)
 
-    async def return_item(callback: types.CallbackQuery, state: FSMContext):
-        None
+    async def inventory_add_start(self, callback: types.CallbackQuery, state: FSMContext):
+        await callback.message.edit_text(
+            "<b>Введите название детали</b> и <b>цену</b> через запятую.\nПример: <i>Arduino Mega, 1500</i>",
+            reply_markup=keyboards.keyboard_alias_back(),
+            parse_mode=ParseMode.HTML
+        )
+        await state.set_state(InventoryAddState.waiting_for_detail_info)
 
-    async def process_return_item(message: types.Message, state: FSMContext):
-        None
+    async def process_inventory_add(self, message: types.Message, state: FSMContext):
+        text = message.text
+        try:
+            # Expect input format: "Название, цена"
+            name, price_str = [part.strip() for part in text.split(",", 1)]
+            price = float(price_str)
+        except Exception as e:
+            await message.answer(
+                "<b>Неверный формат!</b> Введите данные в формате: <i>Название, цена</i>",
+                parse_mode=ParseMode.HTML
+            )
+            return
 
-    async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
-        None
+        new_detail = Detail(name=name, price=price)
+        OperatorDetails.add_details_to_bucket(detail=new_detail)
+
+        await message.answer(
+            f"✅ Деталь «<b>{name}</b>» успешно добавлена со стоимостью <b>{price}</b>.",
+            reply_markup=keyboards.keyboard_inventory(),
+            parse_mode=ParseMode.HTML
+        )
+        await state.clear()
+
+    async def process_alias_lookup(self, message: types.Message, state: FSMContext):
+        user_alias = message.text.strip().upper()
+
+        result = database.fetchall("SELECT name FROM detail_aliases WHERE alias=?", (user_alias,))
+        if not result:
+            await message.answer(
+                "❌ <b>Ошибка:</b> Объект с алиасом <i>{}</i> не найден.".format(user_alias),
+                reply_markup=keyboards.keyboard_alias_back(),
+                parse_mode=ParseMode.HTML
+            )
+            return
+
+        full_name = result[0]
+
+        details = database.fetchall_multiple("SELECT id, name, price, owner FROM details WHERE name=?", (full_name,))
+        if not details:
+            await message.answer(
+                "❌ <b>Ошибка:</b> Нет деталей с именем <i>{}</i> в инвентаре.".format(full_name),
+                reply_markup=keyboards.keyboard_alias_back(),
+                parse_mode=ParseMode.HTML
+            )
+            return
+
+        # output = await form_message_detail_info(message, state, details)
+
+        cost = details[0][2]  # Assuming the price is stored at index 2.
+        owner_name_map = Operator.get_idt_name_map()
+
+        output_lines = [f"💰 <b>Цена:</b> {cost}", "📦 <b>Объекты:</b>"]
+        for detail in details:
+            obj_id = detail[0]
+            owner_id = detail[3]
+            if owner_id and owner_id in owner_name_map:
+                owner_name = f"{owner_name_map[owner_id][0]} {owner_name_map[owner_id][1]}"
+            else:
+                owner_name = "Нет владельца"
+            output_lines.append(f"🔹 <b>ID:</b> {obj_id} | <b>Владелец:</b> {owner_name}")
+
+        output = "\n".join(output_lines)
+
+        await message.answer(output, reply_markup=keyboards.keyboard_transfer_return(), parse_mode=ParseMode.HTML)
+        await state.clear()
+
+    async def transfer_item(self, callback: types.CallbackQuery, state: FSMContext):
+        await callback.message.edit_text(
+            "Введите <b>ID объекта</b> и <b>ID нового владельца</b> через запятую.\nПример: <i>23, 987654321</i>",
+            reply_markup=keyboards.keyboard_alias_back(),
+            parse_mode=ParseMode.HTML)
+        await state.set_state(ItemActionState.waiting_for_transfer_info)
+
+    async def process_transfer_item(self, message: types.Message, state: FSMContext):
+        try:
+            obj_id_str, new_owner_str = [part.strip() for part in message.text.split(",", 1)]
+            obj_id = int(obj_id_str)
+            new_owner = int(new_owner_str)
+        except ValueError:
+            await message.answer(
+                "❌ <b>Ошибка:</b> Введите корректные числа в формате: <i>ID объекта, ID нового владельца</i>.",
+                reply_markup=keyboards.keyboard_alias_back(),
+                parse_mode=ParseMode.HTML
+            )
+            return
+
+        if not Detail.detail_exists(obj_id):
+            await message.answer(
+                f"❌ <b>Ошибка:</b> Объект с ID <b>{obj_id}</b> не найден в инвентаре.",
+                reply_markup=keyboards.keyboard_alias_back(),
+                parse_mode=ParseMode.HTML
+            )
+            return
+
+        if not BaseUser.user_exists(new_owner):
+            await message.answer(
+                f"❌ <b>Ошибка:</b> Пользователь с ID <b>{new_owner}</b> не найден в системе.",
+                reply_markup=keyboards.keyboard_alias_back(),
+                parse_mode=ParseMode.HTML
+            )
+            return
+
+        database.execute("UPDATE details SET owner=? WHERE id=?", (new_owner, obj_id))
+        await message.answer(
+            f"✅ Объект с ID <b>{obj_id}</b> успешно передан пользователю <b>{new_owner}</b>.",
+            reply_markup=keyboards.keyboard_transfer_return(),
+            parse_mode=ParseMode.HTML
+        )
+        # await form_message_with_bucket(message, state)
+        await state.set_state(AliasLookupState.waiting_for_alias)
+
+    async def return_item(self, callback: types.CallbackQuery, state: FSMContext):
+        await callback.message.edit_text(
+            "Введите <b>ID объекта</b> для возврата.\nПример: <i>23</i>",
+            reply_markup=keyboards.keyboard_alias_back(),
+            parse_mode=ParseMode.HTML
+        )
+        await state.set_state(ItemActionState.waiting_for_return_info)
+
+    async def process_return_item(self, message: types.Message, state: FSMContext):
+        try:
+            obj_id = int(message.text.strip())
+        except ValueError:
+            await message.answer(
+                "❌ <b>Ошибка:</b> Введите корректный числовой ID объекта.",
+                reply_markup=keyboards.keyboard_alias_back(),
+                parse_mode=ParseMode.HTML
+            )
+            return
+
+        if not Detail.detail_exists(obj_id):
+            await message.answer(
+                f"❌ <b>Ошибка:</b> Объект с ID <b>{obj_id}</b> не найден в инвентаре.",
+                reply_markup=keyboards.keyboard_alias_back(),
+                parse_mode=ParseMode.HTML
+            )
+            return
+
+        database.execute("UPDATE details SET owner=NULL WHERE id=?", (obj_id,))
+        await message.answer(
+            f"✅ Объект с ID <b>{obj_id}</b> успешно возвращён в инвентарь.",
+            reply_markup=keyboards.keyboard_transfer_return(),
+            parse_mode=ParseMode.HTML
+        )
+        await state.clear()
+
+    # async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
+    #     None
