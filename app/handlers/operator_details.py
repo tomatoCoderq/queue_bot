@@ -118,3 +118,11 @@ async def return_detail_to_queue(message: types.Message, state: FSMContext, bot:
     teacher = Operator(message.from_user.id)
     manager = OperatorManagerDetails(teacher)
     await manager.return_detail_to_queue(message, state, bot)
+
+
+@teacher_router.callback_query(
+    F.data.in_({CallbackDataKeys.confirm_high_urgency, CallbackDataKeys.reject_high_urgency}))
+async def process_high_urgency_handler(callback: types.CallbackQuery) -> None:
+    teacher = Operator(callback.from_user.id)
+    manager = OperatorManagerDetails(teacher)
+    await manager.process_high_urgency(callback)

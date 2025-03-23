@@ -453,6 +453,20 @@ class OperatorManagerDetails(OperatorManager):
 
         await state.clear()
 
+    async def process_high_urgency(self, callback: types.CallbackQuery) -> None:
+
+        if callback.data == CallbackDataKeys.confirm_high_urgency:
+            id_to_change = callback.message.text.split()[1]
+
+            database.execute("UPDATE requests_queue SET urgency=? WHERE id=?", (1, id_to_change))
+            logger.success("UPDATED urgency=3 after confirm by Operator")
+
+            await callback.answer(StudentMessages.HIGH_URGENCY_ACCEPTED)
+            await callback.message.delete()
+
+        else:
+            await callback.answer(StudentMessages.HIGH_URGENCY_REJECTED)
+            await callback.message.delete()
 
 class OperatorManagerPenalties(OperatorManager):
     def __init__(self, operator: Operator):
