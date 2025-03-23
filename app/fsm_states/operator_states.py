@@ -34,3 +34,10 @@ class ItemActionState(StatesGroup):
     waiting_for_transfer_info = State()
     waiting_for_return_info = State()
 
+
+class AliasLookupState(StatesGroup):
+    waiting_for_alias = State()
+
+
+class InventoryAddState(StatesGroup):
+    waiting_for_detail_info = State()

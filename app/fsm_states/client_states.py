@@ -6,3 +6,7 @@ class SendPiece(StatesGroup):
     waiting_amount = State()
     waiting_comments = State()
     waiting_file = State()
+    waiting_param = State()
+
+class DeleteOwnQueue(StatesGroup):
+    get_id_to_delete = State()
