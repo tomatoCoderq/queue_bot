@@ -55,6 +55,7 @@ class Client(BaseUser):
         return message_to_send
 
     def get_penalties(self):
+        self.penalties = self.__set_penalties()
         to_return = ""
 
         if len(self.penalties) == 0:

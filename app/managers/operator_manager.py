@@ -585,11 +585,11 @@ class OperatorManagerStudentCards(OperatorManager):
 
     async def add_penalty(self, callback: types.CallbackQuery, state: FSMContext, reason):
         data = await state.get_data()
-
         client = Client(data['idt'])
-        client_card = client.full_card()
 
         database.execute("INSERT INTO penalty VALUES (NULL, ?, ?)", (data["idt"], client.penalties_reason_map[reason]))
+
+        client_card = client.full_card()
 
         # await message.delete()
         await callback.message.edit_text("✅ Штраф добавлен\n\n" + client_card, reply_markup=keyboards.keyboard_student_card_actions())
@@ -599,11 +599,11 @@ class OperatorManagerStudentCards(OperatorManager):
 
     async def add_penalty_with_photo(self, message: types.Message, state: FSMContext, reason, photo):
         data = await state.get_data()
-
         client = Client(data['idt'])
-        client_card = client.full_card()
 
         database.execute("INSERT INTO penalty VALUES (NULL, ?, ?)", (data["idt"], client.penalties_reason_map[reason]))
+
+        client_card = client.full_card()
 
         await message.answer("✅ Штраф добавлен\n\n" + client_card, reply_markup=keyboards.keyboard_student_card_actions())
         await message.bot.send_photo(client.telegram_id, caption=f"⚠️ Вам назначен штраф: <b>{client.penalties_reason_map[reason]}</b>.", photo=photo)
