@@ -14,6 +14,11 @@ class Client(BaseUser):
     penalties: list[list]
     tasks: str
 
+    penalties_reason_map = {
+        "penalty_messy_desk": "Неубранное рабочее место",
+        "penalty_no_shoes": "Отсутствие второй обуви"
+    }
+
     def __init__(self, telegram_id: Union[int, str]):
         super().__init__(telegram_id, role="student")
         self.username = self._get_username_by_telegram_id(telegram_id)

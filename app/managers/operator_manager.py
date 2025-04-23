@@ -583,21 +583,30 @@ class OperatorManagerStudentCards(OperatorManager):
                              reply_markup=keyboards.keyboard_main_teacher())
         await state.clear()
 
-    async def add_penalty(self, callback: types.CallbackQuery, state: FSMContext):
+    async def add_penalty(self, callback: types.CallbackQuery, state: FSMContext, reason):
         data = await state.get_data()
-
-        reason_map = {
-            "penalty_messy_desk": "Неубранное рабочее место",
-            "penalty_no_shoes": "Отсутствие второй обуви"
-        }
-
-        database.execute("INSERT INTO penalty VALUES (NULL, ?, ?)", (data["idt"], reason_map[callback.data]))
 
         client = Client(data['idt'])
         client_card = client.full_card()
 
+        database.execute("INSERT INTO penalty VALUES (NULL, ?, ?)", (data["idt"], client.penalties_reason_map[reason]))
+
         # await message.delete()
         await callback.message.edit_text("✅ Штраф добавлен\n\n" + client_card, reply_markup=keyboards.keyboard_student_card_actions())
+        await callback.bot.send_message(client.telegram_id, f"⚠️ Вам назначен штраф: <b>{client.penalties_reason_map[reason]}</b>.")
+
+        await state.set_state(ShowClientCard.further_actions)
+
+    async def add_penalty_with_photo(self, message: types.Message, state: FSMContext, reason, photo):
+        data = await state.get_data()
+
+        client = Client(data['idt'])
+        client_card = client.full_card()
+
+        database.execute("INSERT INTO penalty VALUES (NULL, ?, ?)", (data["idt"], client.penalties_reason_map[reason]))
+
+        await message.answer("✅ Штраф добавлен\n\n" + client_card, reply_markup=keyboards.keyboard_student_card_actions())
+        await message.bot.send_photo(client.telegram_id, caption=f"⚠️ Вам назначен штраф: <b>{client.penalties_reason_map[reason]}</b>.", photo=photo)
 
         await state.set_state(ShowClientCard.further_actions)
 

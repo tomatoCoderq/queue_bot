@@ -69,40 +69,24 @@ async def main():
     except (sqlite3.OperationalError, sqlite3.Error) as e:
         logger.error(f"HUGE BD MISTAKE: {e}")
 
-    # os.environ['TZ'] = 'Europe/Moscow'
-    # time.tzset()
-    # time.strftime('%X %x')
-
     # Routers from all handlers
     dp.include_router(client_details.router)
     dp.include_router(operator_details.teacher_router)
     dp.include_router(start.router)
     dp.include_router(back_routes.router)
-    # dp.include_router(student_queue.router)
     dp.include_router(test_handlers.router)
-    # dp.include_router(add_tasks.router)
-    # dp.include_router(teacher_proceed_tasks.router)
-    # dp.include_router(teacher_tasks_queue.router)
     dp.include_router(client_equipment.router)
-    # dp.include_router(details.router)
     dp.include_router(operator_equipment.router)
-    # dp.include_router(details_client.router)
     dp.include_router(operator_students_cards.router)
 
 
     # Dispatchers from all handlers
-    # start_login.register_start_logging_handler(dp)
     test_handlers.register_test_handler(dp)
 
     asyncio.create_task(add_tasks.scheduler(bot))
 
     # await bot.delete_webhook()
     await dp.start_polling(bot)
-#
-# async def on_startup():
-#     asyncio.create_task(add_tasks.job())
 
 if __name__ == "__main__":
     asyncio.run(main())
-    # asyncio.run(add_tasks.job())
-    # asyncio.run(on_startup())

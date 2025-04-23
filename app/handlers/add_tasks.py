@@ -1,14 +1,7 @@
 import asyncio
-import os
-import datetime
-import time
-from datetime import tzinfo, timedelta
 
-from aiogram.enums import ParseMode
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
-from aiogram import F, Dispatcher
-from aiogram.filters import StateFilter, Command
+import time
+
 from app.utils.files import *
 
 
@@ -27,7 +20,6 @@ from app.utils.messages import StudentMessages, TeacherMessages
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 scheduler = AsyncIOScheduler()
-
 
 class UserTask:
     def __init__(self, idt, task_first, task_second):

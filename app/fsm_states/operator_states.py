@@ -22,6 +22,8 @@ class ShowClientCard(StatesGroup):
     get_changed_task = State()
     further_actions = State()
     get_penalty_reasons = State()
+    get_whether_wants_photo = State()
+    waiting_penalty_photo = State()
     get_penalty_id_to_delete = State()
 
 

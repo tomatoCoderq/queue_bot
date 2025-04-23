@@ -1,10 +1,14 @@
+import sys
+
+from dotenv import load_dotenv
+
 from app.handlers.teacher_tasks_queue import map_names_and_idt
+from app.models.client import Client
 from app.utils.files import *
 from app.models.operator import Operator
 from app.managers.operator_manager import OperatorManagerDetails, OperatorManagerStudentCards
 from app.fsm_states.operator_states import CheckMessage, ReturnToQueue, ShowClientCard
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
 
 router = Router()
 
@@ -24,6 +28,7 @@ def get_student_selection_keyboard():
     buttons.append([InlineKeyboardButton(text="⬅️Назад", callback_data="back_to_main_teacher")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
+
 @router.callback_query(F.data == "clients")
 async def show_all_clients_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
     await callback.message.edit_text(
@@ -36,6 +41,7 @@ async def show_all_clients_handler(callback: types.CallbackQuery, state: FSMCont
 
     # @router.callback_query(F.data == "clients"
 
+
 @router.callback_query(ShowClientCard.get_client_id)
 async def show_client_card_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
     idt = callback.data.split("_")[-1]  # extract student ID
@@ -44,7 +50,6 @@ async def show_client_card_handler(callback: types.CallbackQuery, state: FSMCont
     teacher = Operator(callback.from_user.id)
     manager = OperatorManagerStudentCards(teacher)
     await manager.show_client_card(callback, state)
-
 
 
 @router.callback_query(F.data.in_({"t1", "t2"}), ShowClientCard.further_actions)
@@ -89,36 +94,58 @@ async def finalize_task_set(message: types.Message, state: FSMContext):
     await state.clear()
 
 
-# @router.callback_query(F.data == "removetask")
-# async def remove_all_tasks_handler(callback: types.CallbackQuery, bot: Bot, state: FSMContext):
-#     teacher = Operator(callback.from_user.id, callback.from_user.username)
-#     manager = OperatorManagerDetails(teacher)
-#     await manager.show_details_queue(callback)
-
-
 @router.callback_query(F.data == "setpenalty", ShowClientCard.further_actions)
 async def ask_penalty_reason_handler(callback: types.CallbackQuery, state: FSMContext):
-    # await callback.message.answer("Введите причину штрафа:")
-    # await callback.message.delete()
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
         [types.InlineKeyboardButton(text="🧹 Неубранное рабочее место", callback_data="penalty_messy_desk")],
         [types.InlineKeyboardButton(text="👟 Отсутствие второй обуви", callback_data="penalty_no_shoes")],
-        # [types.InlineKeyboardButton(text="❌ Отмена", callback_data="back_to_student_card")]
     ])
     await callback.message.edit_text("Выберите причину штрафа:", reply_markup=keyboard)
+
     await state.set_state(ShowClientCard.get_penalty_reasons)
     await callback.answer()
 
 
-@router.callback_query(F.data, ShowClientCard.get_penalty_reasons)
-async def add_penalty_handler(callback: types.CallbackQuery, state: FSMContext):
+@router.callback_query(F.data.in_(["penalty_messy_desk", "penalty_no_shoes"]), ShowClientCard.get_penalty_reasons)
+async def ask_whether_send_photo(callback: types.CallbackQuery, state: FSMContext):
+    await state.update_data(reason=callback.data)
+
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="Да", callback_data="penalty_send_photo_yes")],
+        [types.InlineKeyboardButton(text="Нет", callback_data="penalty_send_photo_no")]]
+    )
+    await callback.message.edit_text("Хотите прислать фотографию?", reply_markup=keyboard)
+    await state.set_state(ShowClientCard.get_whether_wants_photo)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "penalty_send_photo_no", ShowClientCard.get_whether_wants_photo)
+async def add_penalty_without_photo(callback: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    reason = data["reason"]
+
     teacher = Operator(callback.from_user.id)
     manager = OperatorManagerStudentCards(teacher)
-    print("here")
-    await manager.add_penalty(callback, state)
-    await callback.answer("Штраф добавлен.")
+    await manager.add_penalty(callback, state, reason)
 
-    # await state.clear()
+
+@router.callback_query(F.data == "penalty_send_photo_yes", ShowClientCard.get_whether_wants_photo)
+async def prompt_for_penalty_photo(callback: types.CallbackQuery, state: FSMContext):
+    await callback.message.edit_text("Пришлите, пожалуйста, фотографию штрафа.")
+    await state.set_state(ShowClientCard.waiting_penalty_photo)
+    await callback.answer()
+
+
+@router.message(ShowClientCard.waiting_penalty_photo, F.photo)
+async def receive_penalty_photo(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    client_id = data["idt"]
+    reason = data["reason"]
+    photo = message.photo[-1].file_id
+
+    teacher = Operator(message.from_user.id)
+    manager = OperatorManagerStudentCards(teacher)
+    await manager.add_penalty_with_photo(message, state, reason, photo)
 
 
 @router.callback_query(F.data == "removepenalty", ShowClientCard.further_actions)
@@ -140,6 +167,20 @@ async def remove_penalty_handler(message: types.Message, state: FSMContext):
     await manager.remove_penalty(message, int(message.text), state)
     # await state.clear()
 
+
+@router.message(Command("restart"))
+async def restart_bot(message: types.Message, bot: Bot):
+    load_dotenv()
+    teacher_ids = os.getenv("TEACHER_IDS").split(",")
+
+    print(teacher_ids)
+    if message.from_user.username not in teacher_ids:
+        return await message.reply("Нет прав для перезапуска бота.")
+
+    await message.reply("Перезапускаюсь…")
+
+    # # вариант A: полностью заменить текущий процесс новым
+    os.execv(sys.executable, [sys.executable, "main.py"])
 
 # @router.callback_query(F.data == "bk", ShowClientCard.further_actions)
 # async def back_to_main_teacher_handler(callback: types.CallbackQuery, state: FSMContext):

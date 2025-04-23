@@ -1,20 +1,6 @@
-import random
 from typing import *
-import os
-import datetime
 
-from aiogram.enums import ParseMode
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
-from aiogram import F, Dispatcher
-from aiogram.filters import StateFilter, Command
-from exceptiongroup import catch
-
-from app.utils import keyboards
-from aiogram import Bot, types, Router
-from loguru import logger
-from aiogram.filters import BaseFilter
-
+from aiogram import Bot
 from app.utils.database import database
 
 
