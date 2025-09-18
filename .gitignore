@@ -1,7 +1,12 @@
-.env
 logs.log
 students_files/*
 database/*
-.venv/
 permanent/*
 data.xlsx
+
+#System files
+.env
+.venv/
+__pycache__/
+.vscode/
+.idea/

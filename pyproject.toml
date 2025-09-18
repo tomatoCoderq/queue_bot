@@ -1,0 +1,18 @@
+[project]
+name = "queue-bot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "aiogram>=3.22.0",
+    "aiogram-dialog>=2.4.0",
+    "aioschedule>=0.5.2",
+    "alembic>=1.16.5",
+    "apscheduler>=3.11.0",
+    "dotenv>=0.9.9",
+    "loguru>=0.7.3",
+    "openpyxl>=3.1.5",
+    "psycopg2-binary>=2.9.10",
+    "sqlalchemy>=2.0.43",
+]
