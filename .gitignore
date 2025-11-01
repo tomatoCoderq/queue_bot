@@ -5,3 +5,7 @@ database/*
 .venv/
 permanent/*
 data.xlsx
+.idea/
+__pycache__/
+app.db
+.DS_Store
