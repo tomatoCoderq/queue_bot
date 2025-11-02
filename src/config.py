@@ -9,7 +9,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 class SQLiteSettings(BaseSettings):
     
     DB_NAME: str = Field(default="app.db")
-    DB_URL: str = Field(default="-1")
+    DB_URL: Optional[str] = Field(default=None)
     
     @field_validator("DB_URL", mode="before")
     def assemble_async_db_connection(cls, v, values):

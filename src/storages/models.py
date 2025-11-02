@@ -1,4 +1,5 @@
 from uuid import UUID, uuid4
+from pydantic import model_validator
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional
 from datetime import datetime
@@ -27,22 +28,22 @@ class BaseTelegramUser(BaseUser, table=True):
 class Operator(SQLModel, table=True):
     __tablename__ = "operators"  # type: ignore
 
-    id: int = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="telegrams_users.id", unique=True)
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="telegram_users.id", unique=True)
 
     type: str = Field(
         description="Department the operator belongs to: admin, teacher")
 
-    user: BaseUser = Relationship(back_populates="operator")
+    user: Optional[BaseTelegramUser] = Relationship(back_populates="operator")
 
 
 class Client(SQLModel, table=True):
     __tablename__ = "clients"  # type: ignore
 
-    id: int = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="users.id", unique=True)
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="telegram_users.id", unique=True)
 
-    user: BaseUser = Relationship(back_populates="client")
+    user: Optional["BaseTelegramUser"] = Relationship(back_populates="client")
 
     parent: Optional["Parent"] = Relationship(back_populates="client")
     student: Optional["Student"] = Relationship(back_populates="client")
@@ -60,6 +61,8 @@ class Student(SQLModel, table=True):
                            description="ID of the group the student belongs to")
 
     client: Client = Relationship(back_populates="student")
+    group: "Group" = Relationship(back_populates="students")
+    tasks: list["Task"] = Relationship(back_populates="student")
 
 
 class Parent(SQLModel, table=True):
@@ -100,6 +103,7 @@ class Task(SQLModel, table=True):
     status: str = Field(default="pending",
                         description="Current status of the task: pending, in_progress, completed, overdue")
 
+    # TODO: Validate here dates (not earlier than created, due time > start time, etc)
     created_at: datetime = Field(
         default_factory=datetime.utcnow, description="Timestamp when the task was created")
     start_date: datetime = Field(
@@ -119,7 +123,23 @@ class Task(SQLModel, table=True):
 
     group_id: UUID = Field(foreign_key="groups.id",
                            description="ID of the group the task is assigned to")
+    
+    parent_id: Optional[UUID] = Field(default=None, foreign_key="parents.id")
 
     student: Student = Relationship(back_populates="tasks")
     group: Group = Relationship(back_populates="tasks")
+    parent: Optional["Parent"] = Relationship(back_populates="tasks")
+
+
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.start_date is None or self.due_date is None:
+            return self
+        
+        start = datetime.strptime(self.start_date, "%Y-%m-%d") # type: ignore
+        due = datetime.strptime(self.due_date, "%Y-%m-%d") # type: ignore
+
+        if start >= due:
+            raise ValueError("start_date must be earlier than due_date")
+        return self
 

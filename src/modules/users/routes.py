@@ -4,6 +4,8 @@ from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from src.config import settings
 
+from src.storages.dependencies import DbSession
+
 router = Router(prefix="/users", tags=["users"])
 
 
