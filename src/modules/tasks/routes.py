@@ -80,8 +80,8 @@ async def assign_task_to_user(task_id: UUID, user_id: UUID, session: DbSession):
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    # Just verify the user exists
-    student = await user_repo.read_user_by_id(user_id, session)
+    # Get student by user_id and use their student.id for assignment
+    student = await user_repo.read_student_by_user_id(user_id, session)
     if student is None:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -91,12 +91,22 @@ async def assign_task_to_user(task_id: UUID, user_id: UUID, session: DbSession):
 
 @router.post("/{task_id}/unassign/{user_id}")
 async def unassign_task_from_user(task_id: UUID, user_id: UUID, session: DbSession):  # type: ignore
+    """
+    Unassign a task from a student by their user_id (Telegram user ID).
+    Verifies that the task is assigned to this specific student before unassigning.
+    """
     task = await repo.read_task(task_id, session)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    if task.student_id != user_id:
-        raise HTTPException(status_code=400, detail="Task is not assigned to this user")
+    # Get student by user_id to verify the task is assigned to this student
+    student = await user_repo.read_student_by_user_id(user_id, session)
+    if student is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Compare student.id (stored in DB) with task.student_id, not user_id
+    if task.student_id != student.id:
+        raise HTTPException(status_code=400, detail="Task is not assigned to this student")
 
     task = await repo.unassign_task_from_user_repo(task, session)
     return task

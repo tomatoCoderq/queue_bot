@@ -73,14 +73,14 @@ async def mark_task_as_complete_repo(task: Task, session: DbSession):
 
 
 async def read_tasks_by_student(student_id: UUID, session: DbSession):  # type: ignore
+    print("Reading tasks for student_id:", student_id)
     statement = select(Task).where(Task.student_id == student_id)
     result = await session.execute(statement)
-    print("result:", result)
+    # print("result:", result.scalars().all())
     return result.scalars().all()
 
 
-async def read_tasks_by_user(user_id: UUID, session: DbSession):  # type: ignore
-    student = await user_repo.get_student_by_user_id(user_id, session)
+async def read_tasks_by_user(student: Student, session: DbSession):  # type: ignore
     if student is None:
         return []
     return await read_tasks_by_student(student.id, session)

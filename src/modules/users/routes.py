@@ -6,6 +6,7 @@ from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from src.modules.tasks.schemes import TaskReadResponse
 from src.config import settings
+from typing import Union
 
 from src.storages.dependencies import DbSession
 from src.storages.models import BaseTelegramUser
@@ -58,8 +59,13 @@ async def create_user(user: CreateUserRequest, db: DbSession):  # type: ignore
             status_code=200,
             response_model=GetUserResponse,
             description="Retrieve a specific user by their ID")
-async def get_user(user_id: UUID, db: DbSession):  # type: ignore
-    user = await repo.read_user_by_id(user_id, db)
+async def get_user(user_id: Union[UUID, int], db: DbSession):  # type: ignore
+    user = None
+    if isinstance(user_id, int):
+        user = await repo.read_user_by_telegram_id(user_id, db)
+    else:
+        user = await repo.read_user_by_id(user_id, db)
+
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return user
@@ -68,8 +74,12 @@ async def get_user(user_id: UUID, db: DbSession):  # type: ignore
 @router.delete("/{user_id}",
                status_code=204,
                description="Delete a specific user by their ID")
-async def delete_user(user_id: UUID, db: DbSession):  # type: ignore
-    user = await repo.read_user_by_id(user_id, db)
+async def delete_user(user_id: Union[UUID, int], db: DbSession):  # type: ignore
+    user = None
+    if isinstance(user_id, int):
+        user = await repo.read_user_by_telegram_id(user_id, db)
+    else:
+        user = await repo.read_user_by_id(user_id, db)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -104,7 +114,11 @@ async def get_student_tasks(user_id: UUID, session: DbSession):  # type: ignore
     if user.role != "STUDENT":
         raise HTTPException(status_code=400, detail="User is not a student")
 
-    student = await repo.read_user_by_id(user_id, session)
+    student = await repo.get_student_by_user_id(user_id, session)
+    if student is None:
+        raise HTTPException(status_code=404, detail="Student not found")
 
-    tasks = await task_repo.read_tasks_by_user(user_id, session)
+    print("Found student:", student)
+
+    tasks = await task_repo.read_tasks_by_student(student.id, session)
     return tasks

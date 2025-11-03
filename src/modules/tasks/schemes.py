@@ -42,6 +42,8 @@ class TaskReadResponse(SQLModel):
     created_at: datetime = Field(description="Timestamp when the task was created")
     start_date: datetime = Field(description="Start date of the task")
     due_date: Optional[datetime] = Field(description="Due date for the task")
+    student_id: Optional[UUID] = Field(description="ID of the student the task is assigned to")
+    group_id: Optional[UUID] = Field(description="ID of the group the task is")
 
 class TaskUpdateRequest(SQLModel):
     title: Optional[str] = Field(default=None, description="Title of the task")

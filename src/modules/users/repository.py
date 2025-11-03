@@ -68,17 +68,22 @@ async def add_student(user_create: BaseTelegramUser, session: DbSession):  # typ
     print(">>> add_student called")
     print("session type:", type(session))
     print("is AsyncSession:", isinstance(session, AsyncSession))
+    
+    response = {}
+    
     session.add(user_create)
     await session.commit()
     await session.refresh(user_create)
-    print("Created user:", user_create)
+    # print("Created user:", user_create)
+    response['user'] = user_create.model_dump()
 
     print("Starting to create client for user_id:", user_create.id)
     client = Client(user_id=user_create.id)
     session.add(client)
     await session.commit()
     await session.refresh(client)
-    print("Created client:", client)
+    # print("Created client:", client)
+    response['client'] = client.model_dump()
 
     print("Starting to create student for client_id:", client.id)
     student = Student(client_id=client.id)
@@ -86,8 +91,9 @@ async def add_student(user_create: BaseTelegramUser, session: DbSession):  # typ
     await session.commit()
     await session.refresh(student)
     print("Created student:", student)
+    response['student'] = student
 
-    return student
+    return response
 
 
 async def add_operator(user_create: BaseTelegramUser, session: DbSession):  # type: ignore
@@ -104,14 +110,33 @@ async def add_operator(user_create: BaseTelegramUser, session: DbSession):  # ty
 
 
 async def read_user_by_id(user_id: UUID, session: DbSession):  # type: ignore
+    print("Reading user by ID:", user_id)
     statement = select(BaseTelegramUser).where(BaseTelegramUser.id == user_id)
     result = await session.execute(statement)
     user = result.scalar_one_or_none()
+    print("Fetched user:", user)
     return user
+
+async def read_student_by_user_id(user_id: UUID, session: DbSession):  # type: ignore
+    stmt = (
+        select(Student)
+        .join(Client, Student.client_id == Client.id) # type: ignore
+        .join(BaseTelegramUser, Client.user_id == BaseTelegramUser.id) # type: ignore
+        .where(BaseTelegramUser.id == user_id)
+        .options(
+            selectinload(Student.client),   # на случай, если нужен client # type: ignore
+            # заранее подгрузим tasks, если планируем читать/модифицировать
+            selectinload(Student.tasks) # type: ignore
+        )
+    )
+    res = await session.execute(stmt)
+    student = res.scalar_one_or_none()
+    print("Fetched student:", student)
+    return student
 
 
 # type: ignore
-async def read_user_by_telegram_id(telegram_id: int, session: DbSession):
+async def read_user_by_telegram_id(telegram_id: int, session: DbSession): # type: ignore
     statement = select(BaseTelegramUser).where(
         BaseTelegramUser.telegram_id == telegram_id)
     result = await session.execute(statement)
@@ -122,13 +147,13 @@ async def read_user_by_telegram_id(telegram_id: int, session: DbSession):
 async def get_student_by_user_id(user_id: UUID, session: DbSession):  # type: ignore
     stmt = (
         select(Student)
-        .join(Client, Student.client_id == Client.id)
-        .join(BaseTelegramUser, Client.user_id == BaseTelegramUser.id)
+        .join(Client, Student.client_id == Client.id) # type: ignore
+        .join(BaseTelegramUser, Client.user_id == BaseTelegramUser.id) # type: ignore
         .where(BaseTelegramUser.id == user_id)
         .options(
-            selectinload(Student.client),   # на случай, если нужен client
+            selectinload(Student.client),   # на случай, если нужен client # type: ignore
             # заранее подгрузим tasks, если планируем читать/модифицировать
-            selectinload(Student.tasks)
+            selectinload(Student.tasks) # type: ignore
         )
     )
     res = await session.execute(stmt)
