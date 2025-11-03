@@ -9,3 +9,5 @@ data.xlsx
 __pycache__/
 app.db
 .DS_Store
+.vscode/
+Queue\ Bot\ API/

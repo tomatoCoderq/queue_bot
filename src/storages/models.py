@@ -2,7 +2,7 @@ from uuid import UUID, uuid4
 from pydantic import model_validator
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 class BaseUser(SQLModel, table=False):
@@ -55,9 +55,10 @@ class Student(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     client_id: UUID = Field(foreign_key="clients.id", unique=True)
 
-    parent_name: str = Field(
+    parent_name: Optional[str] = Field(
         default=None, description="Name of the student's parent")
-    group_id: UUID = Field(default=None, foreign_key="groups.id",
+
+    group_id: Optional[UUID] = Field(default=None, foreign_key="groups.id",
                            description="ID of the group the student belongs to")
 
     client: Client = Relationship(back_populates="student")
@@ -82,12 +83,14 @@ class Group(SQLModel, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str = Field(index=True, description="Name of the group")
-    description: Optional[str] = Field(
-        default=None, description="Description of the group")
+    description: Optional[str] = Field(default= None, description="Description of the group")
     created_at: datetime = Field(
         default_factory=datetime.utcnow, description="Timestamp when the group was created")
 
+    '''Tasks which are related to the group'''
     tasks: list["Task"] = Relationship(back_populates="group")
+    
+    '''Students who are in the group'''
     students: list[Student] = Relationship(back_populates="group")
 
 
@@ -102,6 +105,9 @@ class Task(SQLModel, table=True):
 
     status: str = Field(default="pending",
                         description="Current status of the task: pending, in_progress, completed, overdue")
+
+    created_by: Optional[UUID] = Field(default=None,
+        description="ID of the user who created the task")
 
     # TODO: Validate here dates (not earlier than created, due time > start time, etc)
     created_at: datetime = Field(
@@ -118,16 +124,16 @@ class Task(SQLModel, table=True):
     # However we can specify a group to which the task is assigned
     # When each student in the group will get a copy of the task assigned to them
     # And group will get the task assigned to it as well
-    student_id: UUID = Field(foreign_key="students.id",
+    student_id: Optional[UUID] = Field(default=None, foreign_key="students.id",
                              description="ID of the student the task is assigned to")
 
-    group_id: UUID = Field(foreign_key="groups.id",
+    group_id: Optional[UUID] = Field(default=None, foreign_key="groups.id",
                            description="ID of the group the task is assigned to")
     
     parent_id: Optional[UUID] = Field(default=None, foreign_key="parents.id")
 
-    student: Student = Relationship(back_populates="tasks")
-    group: Group = Relationship(back_populates="tasks")
+    student: Optional[Student] = Relationship(back_populates="tasks")
+    group: Optional[Group] = Relationship(back_populates="tasks")
     parent: Optional["Parent"] = Relationship(back_populates="tasks")
 
 
@@ -136,10 +142,15 @@ class Task(SQLModel, table=True):
         if self.start_date is None or self.due_date is None:
             return self
         
+        if self.due_date is None:
+            self.due_date = self.start_date + timedelta(hours=1)
+
         start = datetime.strptime(self.start_date, "%Y-%m-%d") # type: ignore
         due = datetime.strptime(self.due_date, "%Y-%m-%d") # type: ignore
 
         if start >= due:
             raise ValueError("start_date must be earlier than due_date")
         return self
+    
+
 
