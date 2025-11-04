@@ -106,15 +106,23 @@ async def update_user(user_id: UUID, user_data: UpdateUserRequest, db: DbSession
             status_code=200,
             response_model=List[TaskReadResponse],
             description="Get all tasks assigned to a specific user")
-async def get_student_tasks(user_id: UUID, session: DbSession):  # type: ignore
-    user = await repo.read_user_by_id(user_id, session)
+async def get_student_tasks(user_id: Union[UUID, int], session: DbSession):  # type: ignore
+    user = None
+    if isinstance(user_id, int):
+        user = await repo.read_user_by_telegram_id(user_id, session)
+    else:
+        user = await repo.read_user_by_id(user_id, session)
+        
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     
     if user.role != "STUDENT":
         raise HTTPException(status_code=400, detail="User is not a student")
 
-    student = await repo.get_student_by_user_id(user_id, session)
+    if isinstance(user_id, int):
+        student = await repo.get_student_by_telegram_id(user_id, session)
+    else:
+        student = await repo.get_student_by_user_id(user_id, session)
     if student is None:
         raise HTTPException(status_code=404, detail="Student not found")
 

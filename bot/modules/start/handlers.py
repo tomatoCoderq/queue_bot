@@ -43,7 +43,7 @@ async def on_role_select(
     """Handle role selection"""
     role_map = {
         "role_student": "student",
-        "role_client": "client",
+        "role_parent": "parent",
         "role_operator": "operator",
     }
     
@@ -139,24 +139,45 @@ async def get_profile_data(dialog_manager: DialogManager, **kwargs):
             "first_name": "Unknown",
             "last_name": "User",
             "role": "unknown",
+            "role_display": "Неизвестная",
             "username": "unknown",
+            "tasks_button_text": "📚 Задачи",
         }
     
     user = await get_user(telegram_id)
     
     if user:
+        role = user["role"].lower()
+        
+        # Map role to display text and button text
+        role_display_map = {
+            "student": "Студент",
+            "operator": "Оператор",
+            "parent": "Родитель",
+        }
+        
+        tasks_button_map = {
+            "student": "📚 Мои задачи",
+            "operator": "👥 Студенты и задачи",
+            "parent": "🚧 В разработке",
+        }
+        
         return {
             "first_name": user["first_name"],
             "last_name": user["last_name"],
-            "role": user["role"],
+            "role": role,
+            "role_display": role_display_map.get(role, role.capitalize()),
             "username": user["username"],
+            "tasks_button_text": tasks_button_map.get(role, "📚 Задачи"),
         }
     
     return {
         "first_name": "Unknown",
         "last_name": "User",
         "role": "unknown",
+        "role_display": "Неизвестная",
         "username": "unknown",
+        "tasks_button_text": "📚 Задачи",
     }
 
 
@@ -165,8 +186,37 @@ async def on_menu_tasks(
     button: Button,
     dialog_manager: DialogManager,
 ):
-    """Handle 'My Tasks' button click"""
-    await callback.answer("Раздел задач в разработке...")
+    """Handle 'My Tasks' button click - different behavior based on role"""
+    if not callback.from_user:
+        return
+    
+    telegram_id = callback.from_user.id
+    user = await get_user(telegram_id)
+    
+    if not user:
+        await callback.answer("Ошибка: пользователь не найден")
+        return
+    
+    role = user.get("role", "").lower()
+    
+    if role == "student":
+        # Import here to avoid circular import
+        from bot.modules.start.windows import StudentStates
+        await dialog_manager.start(
+            StudentStates.MY_TASKS,
+            mode=StartMode.NORMAL,
+        )
+    elif role == "operator":
+        # Import here to avoid circular import
+        from bot.modules.start.windows import OperatorStates
+        await dialog_manager.start(
+            OperatorStates.STUDENTS_LIST,
+            mode=StartMode.NORMAL,
+        )
+    elif role == "parent":
+        await callback.answer("🚧 Функционал для родителей в разработке")
+    else:
+        await callback.answer("Неизвестная роль пользователя")
 
 
 

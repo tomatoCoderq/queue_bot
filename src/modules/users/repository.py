@@ -144,6 +144,23 @@ async def read_user_by_telegram_id(telegram_id: int, session: DbSession): # type
     return user
 
 
+async def get_student_by_telegram_id(telegram_id: int, session: DbSession):  # type: ignore
+    stmt = (
+        select(Student)
+        .join(Client, Student.client_id == Client.id) # type: ignore
+        .join(BaseTelegramUser, Client.user_id == BaseTelegramUser.id) # type: ignore
+        .where(BaseTelegramUser.telegram_id == telegram_id)
+        .options(
+            selectinload(Student.client),   # на случай, если нужен client # type: ignore
+            # заранее подгрузим tasks, если планируем читать/модифицировать
+            selectinload(Student.tasks) # type: ignore
+        )
+    )
+    res = await session.execute(stmt)
+    student = res.scalar_one_or_none()
+    print("Fetched student:", student)
+    return student
+
 async def get_student_by_user_id(user_id: UUID, session: DbSession):  # type: ignore
     stmt = (
         select(Student)

@@ -17,6 +17,19 @@ class ProfileStates(StatesGroup):
     PROFILE = State()
 
 
+# States for Students
+class StudentStates(StatesGroup):
+    MY_TASKS = State()
+    TASK_DETAIL = State()
+
+
+# States for Operators
+class OperatorStates(StatesGroup):
+    STUDENTS_LIST = State()
+    STUDENT_TASKS = State()
+    TASK_DETAIL = State()
+
+
 def create_dialogs():
     """
     Create dialogs with handlers imported from handlers module.
@@ -39,9 +52,9 @@ def create_dialogs():
     # Window 2: Role Choice
     role_choice_window = Window(
         Const("Выберите вашу роль:\n\n"
-              "👤 Student - Студент\n"
-              "👥 Client - Клиент\n"
-              "⚙️ Operator - Оператор"),
+              "👤 Student - Студент (может просматривать свои задачи)\n"
+              "�‍👩‍👧 Parent - Родитель (в разработке)\n"
+              "⚙️ Operator - Оператор (может управлять задачами студентов)"),
         Row(
             Button(
                 Const("👤 Студент"),
@@ -49,8 +62,8 @@ def create_dialogs():
                 on_click=on_role_select,
             ),
             Button(
-                Const("👥 Клиент"),
-                id="role_client",
+                Const("👨‍👩‍� Родитель"),
+                id="role_parent",
                 on_click=on_role_select,
             ),
         ),
@@ -122,13 +135,13 @@ def create_dialogs():
         Format(
             "👤 Ваш профиль\n\n"
             "Имя: {first_name} {last_name}\n"
-            "Роль: {role}\n"
+            "Роль: {role_display}\n"
             "Username: {username}\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
         ),
         Group(
             Button(
-                Const("📚 Мои задачи"),
+                Format("{tasks_button_text}"),
                 id="menu_tasks",
                 on_click=on_menu_tasks,
             ),
