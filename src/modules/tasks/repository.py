@@ -100,3 +100,43 @@ async def read_tasks_by_user(student: Student, session: DbSession):  # type: ign
     if student is None:
         return []
     return await read_tasks_by_student(student.id, session)
+
+
+async def submit_task_repo(task: Task, result: str, session: DbSession):  # type: ignore
+    """Student submits task result for review"""
+    task.result = result
+    task.status = "submitted"
+    await session.commit()
+    await session.refresh(task)
+    return task
+
+
+async def approve_task_repo(task: Task, session: DbSession):  # type: ignore
+    """Teacher/operator approves task completion"""
+    task.status = "completed"
+    await session.commit()
+    await session.refresh(task)
+    return task
+
+
+async def reject_task_repo(task: Task, rejection_comment: str, session: DbSession):  # type: ignore
+    """Teacher/operator rejects task, extends deadline by 1 hour"""
+    from datetime import timedelta
+    
+    task.status = "rejected"
+    task.rejection_comment = rejection_comment
+    
+    # Extend deadline by 1 hour
+    if task.due_date:
+        task.due_date = task.due_date + timedelta(hours=1)
+    
+    await session.commit()
+    await session.refresh(task)
+    return task
+
+
+async def read_submitted_tasks(session: DbSession):  # type: ignore
+    """Get all tasks with status 'submitted' for teacher review"""
+    statement = select(Task).where(Task.status == "submitted")
+    result = await session.execute(statement)
+    return result.scalars().all()

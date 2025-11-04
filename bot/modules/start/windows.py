@@ -21,6 +21,7 @@ class ProfileStates(StatesGroup):
 class StudentStates(StatesGroup):
     MY_TASKS = State()
     TASK_DETAIL = State()
+    SUBMIT_TASK_RESULT = State()
 
 
 # States for Operators
@@ -34,6 +35,10 @@ class OperatorStates(StatesGroup):
     CREATE_TASK_START_DATE = State()
     CREATE_TASK_DUE_DATE = State()
     CREATE_TASK_CONFIRM = State()
+    # States for reviewing submitted tasks
+    SUBMITTED_TASKS = State()
+    REVIEW_TASK_DETAIL = State()
+    REJECT_TASK_COMMENT = State()
 
 
 def create_dialogs():
@@ -52,6 +57,7 @@ def create_dialogs():
         get_profile_data,
         on_menu_tasks,
         on_menu_settings,
+        on_menu_review_tasks,
         on_menu_logout,
     )
 
@@ -150,6 +156,12 @@ def create_dialogs():
                 Format("{tasks_button_text}"),
                 id="menu_tasks",
                 on_click=on_menu_tasks,
+            ),
+            Button(
+                Const("📝 Задачи на проверке"),
+                id="menu_review_tasks",
+                on_click=on_menu_review_tasks,
+                when="is_operator",
             ),
             Button(
                 Const("⚙️ Настройки"),

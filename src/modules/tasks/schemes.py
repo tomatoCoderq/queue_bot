@@ -72,3 +72,11 @@ class TaskUpdateResponse(SQLModel):
     created_at: datetime = Field(description="Timestamp when the task was created")
     start_date: datetime = Field(description="Start date of the task")
     due_date: Optional[datetime] = Field(description="Due date for the task")
+
+
+class TaskSubmitRequest(SQLModel):
+    result: str = Field(description="Result or outcome of the task submitted by student")
+
+
+class TaskRejectRequest(SQLModel):
+    rejection_comment: str = Field(description="Comment from teacher explaining why task was rejected")

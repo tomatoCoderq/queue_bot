@@ -131,3 +131,88 @@ async def create_task_and_assign(
         
         return assigned_task
 
+
+async def submit_task_result(task_id: str, result: str) -> bool:
+    """
+    Submit task result for review
+    
+    Args:
+        task_id: ID of the task to submit
+        result: Result text from student
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.post(
+                f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/{task_id}/submit",
+                json={"result": result}
+            )
+            response.raise_for_status()
+            return True
+    except Exception as e:
+        print(f"Error submitting task: {e}")
+        return False
+
+
+async def approve_task(task_id: str) -> bool:
+    """
+    Approve task completion
+    
+    Args:
+        task_id: ID of the task to approve
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.post(
+                f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/{task_id}/approve"
+            )
+            response.raise_for_status()
+            return True
+    except Exception as e:
+        print(f"Error approving task: {e}")
+        return False
+
+
+async def reject_task(task_id: str, rejection_comment: str) -> bool:
+    """
+    Reject task with comment
+    
+    Args:
+        task_id: ID of the task to reject
+        rejection_comment: Comment explaining why task was rejected
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.post(
+                f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/{task_id}/reject",
+                json={"rejection_comment": rejection_comment}
+            )
+            response.raise_for_status()
+            return True
+    except Exception as e:
+        print(f"Error rejecting task: {e}")
+        return False
+
+
+async def get_submitted_tasks() -> List[Dict[str, Any]]:
+    """Get all tasks with status 'submitted' for review"""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(
+                f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/submitted"
+            )
+            response.raise_for_status()
+            tasks = response.json()
+            return tasks if tasks else []
+    except Exception as e:
+        print(f"Error getting submitted tasks: {e}")
+        return []
+

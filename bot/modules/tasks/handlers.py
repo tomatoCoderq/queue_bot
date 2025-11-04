@@ -33,7 +33,9 @@ async def get_student_tasks_data(dialog_manager: DialogManager, **kwargs) -> Dic
     status_emoji_map = {
         "pending": "⏳",
         "in_progress": "🔄",
+        "submitted": "📝",
         "completed": "✅",
+        "rejected": "❌",
         "overdue": "⚠️",
     }
     
@@ -119,7 +121,9 @@ async def get_task_detail_data(dialog_manager: DialogManager, **kwargs) -> Dict[
     status_display_map = {
         "pending": "⏳ Ожидает",
         "in_progress": "🔄 В работе",
+        "submitted": "📝 На проверке",
         "completed": "✅ Завершено",
+        "rejected": "❌ Отклонено",
         "overdue": "⚠️ Просрочено",
     }
     
@@ -127,6 +131,8 @@ async def get_task_detail_data(dialog_manager: DialogManager, **kwargs) -> Dict[
     task["status_display"] = status_display_map.get(status, status.capitalize())
     task["start_date"] = start_date
     task["due_date"] = due_date
+    task["has_rejection"] = bool(task.get("rejection_comment"))
+    task["rejection_comment"] = task.get("rejection_comment", "")
     
     # Get student name if operator is viewing
     student_name = dialog_manager.dialog_data.get("selected_student_name", "")
@@ -669,3 +675,221 @@ async def on_sort_reset(
     """Reset sort to default"""
     dialog_manager.dialog_data.pop("sort_by", None)
     await callback.answer("✅ Сортировка сброшена")
+
+
+# ============ TASK SUBMIT/REVIEW HANDLERS ============
+
+async def on_submit_task_button(
+    callback: CallbackQuery,
+    button: Button,
+    dialog_manager: DialogManager,
+):
+    """Handle 'Complete Task' button click - switch to result input state"""
+    from bot.modules.start.windows import StudentStates
+    
+    # Switch to result input window
+    await dialog_manager.switch_to(StudentStates.SUBMIT_TASK_RESULT)
+
+
+async def on_task_result_input(
+    message: Message,
+    widget: ManagedTextInput,
+    dialog_manager: DialogManager,
+    text: str,
+) -> None:
+    """Handle student's task result input"""
+    from bot.modules.tasks.service import submit_task_result
+    from bot.modules.start.windows import StudentStates
+    
+    task_id = dialog_manager.dialog_data.get("selected_task_id")
+    
+    if not task_id:
+        await message.answer("❌ Ошибка: задача не найдена")
+        await dialog_manager.switch_to(StudentStates.MY_TASKS)
+        return
+    
+    # Submit task via API
+    success = await submit_task_result(task_id, text)
+    
+    if success:
+        await message.answer(
+            "✅ Задача отправлена на проверку!\n"
+            "Преподаватель получит уведомление и проверит вашу работу."
+        )
+        # Return to task list
+        await dialog_manager.switch_to(StudentStates.MY_TASKS)
+    else:
+        await message.answer("❌ Ошибка при отправке задачи. Попробуйте позже.")
+        await dialog_manager.switch_to(StudentStates.MY_TASKS)
+
+
+async def get_submitted_tasks_data(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    """Getter for submitted tasks list (for operator)"""
+    from bot.modules.tasks.service import get_submitted_tasks
+    
+    tasks = await get_submitted_tasks()
+    
+    # Add status emoji and index to each task
+    for idx, task in enumerate(tasks):
+        task["status_emoji"] = "📝"
+        task["index"] = str(idx)
+    
+    # Store tasks in dialog_data for later retrieval by index
+    dialog_manager.dialog_data["submitted_tasks"] = tasks
+    
+    return {
+        "tasks": tasks,
+        "tasks_count": len(tasks),
+    }
+
+
+async def on_submitted_task_select(
+    callback: CallbackQuery,
+    widget: Select,
+    dialog_manager: DialogManager,
+    item_id: str,
+):
+    """Handle submitted task selection for review"""
+    # Get task by index from stored tasks
+    tasks = dialog_manager.dialog_data.get("submitted_tasks", [])
+    try:
+        task_index = int(item_id)
+        if 0 <= task_index < len(tasks):
+            task_id = tasks[task_index]["id"]
+            dialog_manager.dialog_data["selected_task_id"] = task_id
+            from bot.modules.start.windows import OperatorStates
+            await dialog_manager.switch_to(OperatorStates.REVIEW_TASK_DETAIL)
+        else:
+            await callback.answer("❌ Задача не найдена")
+    except (ValueError, IndexError, KeyError):
+        await callback.answer("❌ Ошибка при выборе задачи")
+
+
+async def get_review_task_detail_data(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    """Getter for task review detail view"""
+    task_id = dialog_manager.dialog_data.get("selected_task_id")
+    
+    if not task_id:
+        return {
+            "task": {
+                "title": "Ошибка",
+                "description": "Задача не найдена",
+                "result": "—",
+                "start_date": "—",
+                "due_date": "—",
+            },
+            "student_name": "—",
+        }
+    
+    task = await get_task_by_id(task_id)
+    
+    if not task:
+        return {
+            "task": {
+                "title": "Ошибка",
+                "description": "Задача не найдена",
+                "result": "—",
+                "start_date": "—",
+                "due_date": "—",
+            },
+            "student_name": "—",
+        }
+    
+    # Format dates
+    start_date = task.get("start_date", "Не указано")
+    due_date = task.get("due_date", "Не указано")
+    
+    if start_date and start_date != "Не указано":
+        start_date = format_date(start_date)
+    if due_date and due_date != "Не указано":
+        due_date = format_date(due_date)
+    
+    task["start_date"] = start_date
+    task["due_date"] = due_date
+    task["result"] = task.get("result", "Не указан")
+    
+    # Get student info
+    student_id = task.get("student_id")
+    student_name = "Неизвестно"
+    
+    if student_id:
+        # Get student name
+        student = await get_user(student_id)
+        if student:
+            student_name = f"{student.get('first_name', '')} {student.get('last_name', '')}"
+    
+    return {
+        "task": task,
+        "student_name": student_name,
+    }
+
+
+async def on_approve_task(
+    callback: CallbackQuery,
+    button: Button,
+    dialog_manager: DialogManager,
+):
+    """Approve task completion"""
+    from bot.modules.tasks.service import approve_task
+    
+    task_id = dialog_manager.dialog_data.get("selected_task_id")
+    
+    if not task_id:
+        await callback.answer("❌ Ошибка: задача не найдена")
+        return
+    
+    success = await approve_task(task_id)
+    
+    if success:
+        await callback.answer("✅ Задача одобрена!")
+        # TODO: Send notification to student
+        from bot.modules.start.windows import OperatorStates
+        await dialog_manager.switch_to(OperatorStates.SUBMITTED_TASKS)
+    else:
+        await callback.answer("❌ Ошибка при одобрении задачи")
+
+
+async def on_reject_task_button(
+    callback: CallbackQuery,
+    button: Button,
+    dialog_manager: DialogManager,
+):
+    """Handle 'Reject Task' button click - switch to comment input state"""
+    from bot.modules.start.windows import OperatorStates
+    
+    # Switch to rejection comment input window
+    await dialog_manager.switch_to(OperatorStates.REJECT_TASK_COMMENT)
+
+
+async def on_rejection_comment_input(
+    message: Message,
+    widget: ManagedTextInput,
+    dialog_manager: DialogManager,
+    text: str,
+) -> None:
+    """Handle operator's rejection comment input"""
+    from bot.modules.tasks.service import reject_task
+    from bot.modules.start.windows import OperatorStates
+    
+    task_id = dialog_manager.dialog_data.get("selected_task_id")
+    
+    if not task_id:
+        await message.answer("❌ Ошибка: задача не найдена")
+        await dialog_manager.switch_to(OperatorStates.SUBMITTED_TASKS)
+        return
+    
+    # Reject task via API
+    success = await reject_task(task_id, text)
+    
+    if success:
+        await message.answer(
+            "✅ Задача отклонена!\n"
+            "Студент получит уведомление с комментарием.\n"
+            "Дедлайн продлен на 1 час."
+        )
+        # TODO: Send notification to student with rejection comment
+        # Return to submitted tasks list
+        await dialog_manager.switch_to(OperatorStates.SUBMITTED_TASKS)
+    else:
+        await message.answer("❌ Ошибка при отклонении задачи")
+        await dialog_manager.switch_to(OperatorStates.SUBMITTED_TASKS)

@@ -45,6 +45,15 @@ def create_task_dialogs():
         on_sort_by_due_date,
         on_sort_by_status,
         on_sort_reset,
+        # Submit/Review handlers
+        on_submit_task_button,
+        on_task_result_input,
+        get_submitted_tasks_data,
+        on_submitted_task_select,
+        get_review_task_detail_data,
+        on_approve_task,
+        on_reject_task_button,
+        on_rejection_comment_input,
     )
     
     # ============ STUDENT WINDOWS ============
@@ -111,11 +120,35 @@ def create_task_dialogs():
             "📅 Дата начала: {task[start_date]}\n"
             "⏰ Дедлайн: {task[due_date]}\n"
             "🎯 Статус: {task[status_display]}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n",
+        ),
+        Format(
+            "❌ Комментарий преподавателя:\n{task[rejection_comment]}\n\n",
+            when="task[has_rejection]"
+        ),
+        Button(
+            Const("✅ Завершить задание"),
+            id="submit_task",
+            on_click=on_submit_task_button,
         ),
         Back(Const("🔙 К списку задач")),
         getter=get_task_detail_data,
         state=StudentStates.TASK_DETAIL,
+    )
+    
+    # Window 3: Submit task result
+    student_submit_result_window = Window(
+        Const(
+            "📝 Отправка результата\n\n"
+            "Введите результат выполнения задания.\n"
+            "Он будет отправлен преподавателю на проверку."
+        ),
+        TextInput(
+            id="result_input",
+            on_success=on_task_result_input,
+        ),
+        Back(Const("🔙 Отмена")),
+        state=StudentStates.SUBMIT_TASK_RESULT,
     )
     
     # ============ OPERATOR WINDOWS ============
@@ -380,10 +413,85 @@ def create_task_dialogs():
         state=OperatorStates.CREATE_TASK_CONFIRM,
     )
     
+    # ============ OPERATOR REVIEW WINDOWS ============
+    
+    # Window 6: Submitted tasks list for review
+    operator_submitted_tasks_window = Window(
+        Format(
+            "📝 Задачи на проверке\n\n"
+            "Всего задач: {tasks_count}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+        ),
+        ScrollingGroup(
+            Select(
+                Format("{item[title]} ({item[status_emoji]})"),
+                id="submitted_task_select",
+                item_id_getter=lambda x: x.get("index", "0"),
+                items="tasks",
+                on_click=on_submitted_task_select,
+            ),
+            id="submitted_tasks_scroll",
+            width=1,
+            height=5,
+        ),
+        Button(
+            Const("🔙 В профиль"),
+            id="back_to_profile",
+            on_click=on_back_to_profile,
+        ),
+        getter=get_submitted_tasks_data,
+        state=OperatorStates.SUBMITTED_TASKS,
+    )
+    
+    # Window 7: Review task detail
+    operator_review_task_window = Window(
+        Format(
+            "📋 Проверка задачи\n\n"
+            "👤 Студент: {student_name}\n\n"
+            "📌 Название: {task[title]}\n"
+            "📝 Описание: {task[description]}\n"
+            "📅 Дата начала: {task[start_date]}\n"
+            "⏰ Дедлайн: {task[due_date]}\n\n"
+            "✏️ Результат студента:\n{task[result]}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+        ),
+        Row(
+            Button(
+                Const("✅ Одобрить"),
+                id="approve_task",
+                on_click=on_approve_task,
+            ),
+            Button(
+                Const("❌ Отклонить"),
+                id="reject_task",
+                on_click=on_reject_task_button,
+            ),
+        ),
+        Back(Const("🔙 К списку")),
+        getter=get_review_task_detail_data,
+        state=OperatorStates.REVIEW_TASK_DETAIL,
+    )
+    
+    # Window 8: Rejection comment input
+    operator_rejection_comment_window = Window(
+        Const(
+            "💬 Комментарий к отклонению\n\n"
+            "Напишите комментарий для студента,\n"
+            "объясняя почему задание нужно переделать."
+        ),
+        TextInput(
+            id="rejection_comment_input",
+            on_success=on_rejection_comment_input,
+        ),
+        Back(Const("🔙 Отмена")),
+        state=OperatorStates.REJECT_TASK_COMMENT,
+    )
+    
     # Create dialogs
     student_tasks_dialog = Dialog(
         student_tasks_window,
         student_task_detail_window,
+        student_submit_result_window,
     )
     
     operator_tasks_dialog = Dialog(
@@ -396,6 +504,10 @@ def create_task_dialogs():
         create_task_start_date_window,
         create_task_due_date_window,
         create_task_confirm_window,
+        # Task review windows
+        operator_submitted_tasks_window,
+        operator_review_task_window,
+        operator_rejection_comment_window,
     )
     
     return student_tasks_dialog, operator_tasks_dialog

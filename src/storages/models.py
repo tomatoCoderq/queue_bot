@@ -104,7 +104,7 @@ class Task(SQLModel, table=True):
         default=None, description="Description of the task")
 
     status: str = Field(default="pending",
-                        description="Current status of the task: pending, in_progress, completed, overdue")
+                        description="Current status of the task: pending, in_progress, submitted, completed, rejected, overdue")
 
     created_by: Optional[UUID] = Field(default=None,
         description="ID of the user who created the task")
@@ -119,6 +119,9 @@ class Task(SQLModel, table=True):
 
     result: Optional[str] = Field(
         default=None, description="Result or outcome of the task. May be null if not completed")
+    
+    rejection_comment: Optional[str] = Field(
+        default=None, description="Comment from teacher when task is rejected. Student needs to redo the task")
 
     # Task will be assigned to a student
     # However we can specify a group to which the task is assigned

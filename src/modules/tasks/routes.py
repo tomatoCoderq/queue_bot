@@ -34,6 +34,14 @@ async def create_task(session: DbSession,  # type: ignore
     return task
 
 
+@router.get("/submitted",
+            status_code=200,
+            response_model=List[TaskReadResponse],
+            description="Get all tasks submitted for review")
+async def get_submitted_tasks_route(session: DbSession):  # type: ignore
+    tasks = await repo.read_submitted_tasks(session)
+    return tasks
+
 @router.get("/{task_id}",
             status_code=200,
             response_model=TaskReadResponse,
@@ -130,6 +138,65 @@ async def mark_task_as_complete(task_id: UUID, session: DbSession):  # type: ign
 
     task = await repo.mark_task_as_complete_repo(task, session)
     return task
+
+
+@router.post("/{task_id}/submit",
+             status_code=200,
+             response_model=TaskReadResponse,
+             description="Student submits task result for review")
+async def submit_task(task_id: UUID, submit_data: TaskSubmitRequest, session: DbSession):  # type: ignore
+    task = await repo.read_task(task_id, session)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    if task.status not in ["pending", "in_progress", "rejected"]:
+        raise HTTPException(status_code=400, detail=f"Task cannot be submitted in {task.status} status")
+    
+    task = await repo.submit_task_repo(task, submit_data.result, session)
+    
+    # TODO: Send notification to teacher/operator
+    
+    return task
+
+
+@router.post("/{task_id}/approve",
+             status_code=200,
+             response_model=TaskReadResponse,
+             description="Teacher/operator approves task completion")
+async def approve_task(task_id: UUID, session: DbSession):  # type: ignore
+    task = await repo.read_task(task_id, session)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    if task.status != "submitted":
+        raise HTTPException(status_code=400, detail=f"Only submitted tasks can be approved")
+    
+    task = await repo.approve_task_repo(task, session)
+    
+    # TODO: Send notification to student about approval
+    
+    return task
+
+
+@router.post("/{task_id}/reject",
+             status_code=200,
+             response_model=TaskReadResponse,
+             description="Teacher/operator rejects task, extends deadline by 1 hour")
+async def reject_task(task_id: UUID, reject_data: TaskRejectRequest, session: DbSession):  # type: ignore
+    task = await repo.read_task(task_id, session)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    if task.status != "submitted":
+        raise HTTPException(status_code=400, detail=f"Only submitted tasks can be rejected")
+    
+    task = await repo.reject_task_repo(task, reject_data.rejection_comment, session)
+    
+    # TODO: Send notification to student about rejection with comment
+    
+    return task
+
+
 
 
 

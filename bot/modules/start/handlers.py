@@ -169,6 +169,7 @@ async def get_profile_data(dialog_manager: DialogManager, **kwargs):
             "role_display": role_display_map.get(role, role.capitalize()),
             "username": user["username"],
             "tasks_button_text": tasks_button_map.get(role, "📚 Задачи"),
+            "is_operator": role == "operator",
         }
     
     return {
@@ -178,6 +179,7 @@ async def get_profile_data(dialog_manager: DialogManager, **kwargs):
         "role_display": "Неизвестная",
         "username": "unknown",
         "tasks_button_text": "📚 Задачи",
+        "is_operator": False,
     }
 
 
@@ -227,6 +229,21 @@ async def on_menu_settings(
 ):
     """Handle 'Settings' button click"""
     await callback.answer("Настройки в разработке...")
+
+
+async def on_menu_review_tasks(
+    callback: CallbackQuery,
+    button: Button,
+    dialog_manager: DialogManager,
+):
+    """Handle 'Review Tasks' button click - for operators"""
+    from bot.modules.start.windows import OperatorStates
+    from aiogram_dialog import StartMode
+    
+    await dialog_manager.start(
+        OperatorStates.SUBMITTED_TASKS,
+        mode=StartMode.NORMAL,
+    )
 
 
 async def on_menu_logout(
