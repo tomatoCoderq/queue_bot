@@ -22,12 +22,29 @@ async def get_student_tasks_data(dialog_manager: DialogManager, **kwargs) -> Dic
         telegram_id = dialog_manager.event.from_user.id
     
     if not telegram_id:
-        return {"tasks": [], "tasks_count": 0, "sort_display": "По умолчанию"}
+        return {
+            "tasks": [], 
+            "tasks_count": 0, 
+            "sort_display": "По умолчанию",
+            "show_completed": False,
+            "toggle_button_text": "👁 Показать выполненные"
+        }
     
     # Get current sort type from dialog_data (default: None)
     sort_by = dialog_manager.dialog_data.get("sort_by", None)
     
+    # Get show_completed flag (default: False)
+    show_completed = dialog_manager.dialog_data.get("show_completed", False)
+    
     tasks = await get_student_tasks(telegram_id, sort_by=sort_by)
+    
+    # Filter out completed tasks if show_completed is False
+    if not show_completed:
+        tasks = [task for task in tasks if task.get("status", "").lower() != "completed"]
+    
+    # Count total and completed tasks
+    all_tasks = await get_student_tasks(telegram_id, sort_by=sort_by)
+    completed_count = sum(1 for task in all_tasks if task.get("status", "").lower() == "completed")
     
     # Add status emoji to each task
     status_emoji_map = {
@@ -51,10 +68,17 @@ async def get_student_tasks_data(dialog_manager: DialogManager, **kwargs) -> Dic
         "status": "По статусу ⬆️"
     }.get(sort_by, "По умолчанию")
     
+    # Toggle button text
+    toggle_button_text = "👁 Скрыть выполненные" if show_completed else "👁 Показать выполненные"
+    
     return {
         "tasks": tasks,
         "tasks_count": len(tasks),
-        "sort_display": sort_display
+        "completed_count": completed_count,
+        "total_count": len(all_tasks),
+        "sort_display": sort_display,
+        "show_completed": show_completed,
+        "toggle_button_text": toggle_button_text,
     }
 
 
@@ -134,12 +158,16 @@ async def get_task_detail_data(dialog_manager: DialogManager, **kwargs) -> Dict[
     task["has_rejection"] = bool(task.get("rejection_comment"))
     task["rejection_comment"] = task.get("rejection_comment", "")
     
+    # Check if task can be submitted (not completed or already submitted)
+    can_submit = status in ["pending", "in_progress", "rejected"]
+    
     # Get student name if operator is viewing
     student_name = dialog_manager.dialog_data.get("selected_student_name", "")
     
     return {
         "task": task,
         "student_name": student_name,
+        "can_submit": can_submit,
     }
 
 
@@ -675,6 +703,21 @@ async def on_sort_reset(
     """Reset sort to default"""
     dialog_manager.dialog_data.pop("sort_by", None)
     await callback.answer("✅ Сортировка сброшена")
+
+
+async def on_toggle_completed_tasks(
+    callback: CallbackQuery,
+    button: Button,
+    dialog_manager: DialogManager,
+):
+    """Toggle showing completed tasks"""
+    current = dialog_manager.dialog_data.get("show_completed", False)
+    dialog_manager.dialog_data["show_completed"] = not current
+    
+    if not current:
+        await callback.answer("✅ Показаны выполненные задачи")
+    else:
+        await callback.answer("✅ Выполненные задачи скрыты")
 
 
 # ============ TASK SUBMIT/REVIEW HANDLERS ============

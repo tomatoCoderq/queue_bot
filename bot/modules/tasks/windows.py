@@ -45,6 +45,7 @@ def create_task_dialogs():
         on_sort_by_due_date,
         on_sort_by_status,
         on_sort_reset,
+        on_toggle_completed_tasks,
         # Submit/Review handlers
         on_submit_task_button,
         on_task_result_input,
@@ -62,7 +63,8 @@ def create_task_dialogs():
     student_tasks_window = Window(
         Format(
             "📚 Мои задачи\n\n"
-            "Всего задач: {tasks_count}\n"
+            "Показано задач: {tasks_count}\n"
+            "Выполнено: {completed_count} из {total_count}\n"
             "Сортировка: {sort_display}\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
         ),
@@ -103,6 +105,11 @@ def create_task_dialogs():
             ),
         ),
         Button(
+            Format("{toggle_button_text}"),
+            id="toggle_completed",
+            on_click=on_toggle_completed_tasks,
+        ),
+        Button(
             Const("🔙 В профиль"),
             id="back_to_profile",
             on_click=on_back_to_profile,
@@ -130,12 +137,12 @@ def create_task_dialogs():
             Const("✅ Завершить задание"),
             id="submit_task",
             on_click=on_submit_task_button,
+            when="can_submit",
         ),
         Back(Const("🔙 К списку задач")),
         getter=get_task_detail_data,
         state=StudentStates.TASK_DETAIL,
     )
-    
     # Window 3: Submit task result
     student_submit_result_window = Window(
         Const(
