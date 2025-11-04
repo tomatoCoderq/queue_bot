@@ -145,10 +145,10 @@ class Task(SQLModel, table=True):
         if self.due_date is None:
             self.due_date = self.start_date + timedelta(hours=1)
 
-        start = datetime.strptime(self.start_date, "%Y-%m-%d") # type: ignore
-        due = datetime.strptime(self.due_date, "%Y-%m-%d") # type: ignore
+        # start = datetime.strptime(self.start_date, "%Y-%m-%d") # type: ignore
+        # due = datetime.strptime(self.due_date, "%Y-%m-%d") # type: ignore
 
-        if start >= due:
+        if self.start_date >= self.due_date:
             raise ValueError("start_date must be earlier than due_date")
         return self
     

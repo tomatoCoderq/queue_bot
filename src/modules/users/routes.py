@@ -102,11 +102,13 @@ async def update_user(user_id: UUID, user_data: UpdateUserRequest, db: DbSession
     # print("Updated user:", updated_user, user_data, existing_user)
     return updated_user
 
+
+
 @router.get("/{user_id}/tasks",
             status_code=200,
             response_model=List[TaskReadResponse],
             description="Get all tasks assigned to a specific user")
-async def get_student_tasks(user_id: Union[UUID, int], session: DbSession):  # type: ignore
+async def get_student_tasks(user_id: Union[UUID, int], session: DbSession, sort: str = None):  # type: ignore
     user = None
     if isinstance(user_id, int):
         user = await repo.read_user_by_telegram_id(user_id, session)
@@ -127,6 +129,18 @@ async def get_student_tasks(user_id: Union[UUID, int], session: DbSession):  # t
         raise HTTPException(status_code=404, detail="Student not found")
 
     print("Found student:", student)
+    
+    tasks = None
+    if sort == None:
+        tasks = await task_repo.read_tasks_by_student(student.id, session)
+    
+    if sort == "start_time":
+        tasks = await task_repo.read_tasks_by_student_sort_start_time(student.id, session)
+        
+    if sort == "end_time":
+        tasks = await task_repo.read_tasks_by_student_sort_end_time(student.id, session)
 
-    tasks = await task_repo.read_tasks_by_student(student.id, session)
+    if sort == "status":
+        tasks = await task_repo.read_tasks_by_student_sort_status(student.id, session)
+
     return tasks

@@ -9,16 +9,16 @@ from sqlmodel import SQLModel, Field
 class TaskCreateRequest(SQLModel):
     title: str = Field(description="Title of the task")
     description: Optional[str] = Field(description="Detailed description of the task")
-    start_date: str = Field(default_factory=datetime.utcnow,description="Start date for the task in YYYY-MM-DD format")
+    start_date: str = Field(default_factory=datetime.utcnow,description="Start date for the task")
     due_date: Optional[str] = Field(default=None, description="Due date for the task in YYYY-MM-DD format")
-    
+
     @model_validator(mode="after")
     def validate_dates(self):
         if self.start_date is None or self.due_date is None:
             return self
         
-        start = datetime.strptime(self.start_date, "%Y-%m-%d")
-        due = datetime.strptime(self.due_date, "%Y-%m-%d") # type: ignore
+        start = datetime.strptime(self.start_date, "%Y-%m-%d %H:%M") # type: ignore
+        due = datetime.strptime(self.due_date, "%Y-%m-%d %H:%M") # type: ignore
 
         if start >= due:
             raise ValueError("start_date must be earlier than due_date")

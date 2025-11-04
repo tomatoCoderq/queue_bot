@@ -28,6 +28,12 @@ class OperatorStates(StatesGroup):
     STUDENTS_LIST = State()
     STUDENT_TASKS = State()
     TASK_DETAIL = State()
+    # States for creating tasks
+    CREATE_TASK_TITLE = State()
+    CREATE_TASK_DESCRIPTION = State()
+    CREATE_TASK_START_DATE = State()
+    CREATE_TASK_DUE_DATE = State()
+    CREATE_TASK_CONFIRM = State()
 
 
 def create_dialogs():
@@ -53,7 +59,7 @@ def create_dialogs():
     role_choice_window = Window(
         Const("Выберите вашу роль:\n\n"
               "👤 Student - Студент (может просматривать свои задачи)\n"
-              "�‍👩‍👧 Parent - Родитель (в разработке)\n"
+              "👨‍👩‍👧 Parent - Родитель (в разработке)\n"
               "⚙️ Operator - Оператор (может управлять задачами студентов)"),
         Row(
             Button(
@@ -62,7 +68,7 @@ def create_dialogs():
                 on_click=on_role_select,
             ),
             Button(
-                Const("👨‍👩‍� Родитель"),
+                Const("👨‍👩‍ Родитель"),
                 id="role_parent",
                 on_click=on_role_select,
             ),
@@ -149,11 +155,6 @@ def create_dialogs():
                 Const("⚙️ Настройки"),
                 id="menu_settings",
                 on_click=on_menu_settings,
-            ),
-            Button(
-                Const("🚪 Выход"),
-                id="menu_logout",
-                on_click=on_menu_logout,
             ),
         ),
         getter=get_profile_data,

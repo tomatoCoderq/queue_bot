@@ -79,6 +79,22 @@ async def read_tasks_by_student(student_id: UUID, session: DbSession):  # type: 
     # print("result:", result.scalars().all())
     return result.scalars().all()
 
+async def read_tasks_by_student_sort_start_time(student_id: UUID, session: DbSession): # type: ignore
+    statement = select(Task).where(Task.student_id == student_id).order_by(Task.start_date)
+    result = await session.execute(statement)
+    return result.scalars().all()
+
+async def read_tasks_by_student_sort_end_time(student_id: UUID, session: DbSession): # type: ignore
+    statement = select(Task).where(Task.student_id == student_id).order_by(Task.due_date)
+    result = await session.execute(statement)
+    return result.scalars().all()
+
+async def read_tasks_by_student_sort_status(student_id: UUID, session: DbSession): # type: ignore
+    statement = select(Task).where(Task.student_id == student_id).order_by(Task.status)
+    result = await session.execute(statement)
+    return result.scalars().all()
+
+
 
 async def read_tasks_by_user(student: Student, session: DbSession):  # type: ignore
     if student is None:
