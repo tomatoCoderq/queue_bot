@@ -86,6 +86,7 @@ def upgrade() -> None:
     sa.Column('start_date', sa.DateTime(), nullable=False),
     sa.Column('rejection_comment', sqlmodel.AutoString(), nullable=True),
     sa.Column('due_date', sa.DateTime(), nullable=True),
+    sa.Column('overdue_notification_sent', sa.Boolean(), nullable=False),
     sa.Column('result', sqlmodel.AutoString(), nullable=True),
     sa.Column('student_id', sa.Uuid(), nullable=True),
     sa.Column('group_id', sa.Uuid(), nullable=True),

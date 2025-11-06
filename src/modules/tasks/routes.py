@@ -42,6 +42,19 @@ async def get_submitted_tasks_route(session: DbSession):  # type: ignore
     tasks = await repo.read_submitted_tasks(session)
     return tasks
 
+
+@router.get("/overdue",
+            status_code=200,
+            # response_model=List[TaskReadResponse],
+            description="Get all overdue tasks")
+async def get_overdue_tasks_route(session: DbSession):  # type: ignore
+    """Get all tasks that are overdue but not marked as overdue yet"""
+    print("Fetching overdue tasks via route...")
+    tasks = await repo.read_overdue_tasks(session)
+    # print("Fetched overdue tasks:", tasks)
+    return tasks
+
+
 @router.get("/{task_id}",
             status_code=200,
             response_model=TaskReadResponse,
@@ -195,6 +208,42 @@ async def reject_task(task_id: UUID, reject_data: TaskRejectRequest, session: Db
     # TODO: Send notification to student about rejection with comment
     
     return task
+
+
+
+
+@router.post("/{task_id}/mark-overdue",
+             status_code=200,
+             response_model=TaskReadResponse,
+             description="Mark task as overdue")
+async def mark_task_as_overdue_route(task_id: UUID, session: DbSession):  # type: ignore
+    """Mark a specific task as overdue"""
+    task = await repo.read_task(task_id, session)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Check if task can be marked as overdue
+    if task.status not in ["pending", "in_progress", "rejected"]:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Task with status '{task.status}' cannot be marked as overdue"
+        )
+    
+    task = await repo.mark_task_as_overdue_repo(task, session)
+    return task
+
+
+@router.post("/{task_id}/mark-overdue-notification",
+             status_code=200,
+             description="Mark that overdue notification was sent")
+async def mark_overdue_notification_route(task_id: UUID, session: DbSession):  # type: ignore
+    """Mark that overdue notification was sent for this task"""
+    task = await repo.read_task(task_id, session)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    task = await repo.mark_overdue_notification_sent_repo(task, session)
+    return {"status": "ok"}
 
 
 

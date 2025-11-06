@@ -1,8 +1,9 @@
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import model_validator
-from sqlmodel import SQLModel, Field 
+from pydantic import field_validator, model_validator
+from sqlmodel import SQLModel, Field
+from zoneinfo import ZoneInfo 
 
 
 
@@ -11,6 +12,19 @@ class TaskCreateRequest(SQLModel):
     description: Optional[str] = Field(description="Detailed description of the task")
     start_date: str = Field(default_factory=datetime.utcnow,description="Start date for the task")
     due_date: Optional[str] = Field(default=None, description="Due date for the task in YYYY-MM-DD format")
+
+    @field_validator("start_date", mode="before")
+    def parse_start_date(cls, value):
+        if value < datetime.now(ZoneInfo("Europe/Moscow")).strftime("%Y-%m-%d %H:%M"):
+            print("ValueError raised in parse_start_date")
+            raise ValueError("start_date must not be earlier than current time")
+        return value
+
+    @field_validator("due_date", mode="before")
+    def parse_due_date(cls, value):
+        if value < datetime.now(ZoneInfo("Europe/Moscow")).strftime("%Y-%m-%d %H:%M"):
+            raise ValueError("due_date must not be earlier than current time")
+        return value
 
     @model_validator(mode="after")
     def validate_dates(self):
@@ -22,6 +36,7 @@ class TaskCreateRequest(SQLModel):
 
         if start >= due:
             raise ValueError("start_date must be earlier than due_date")
+        
         return self
 
 class TaskCreateResponse(SQLModel):

@@ -93,12 +93,16 @@ async def create_task_and_assign(
         # if due_date and due_date != "Не указано":
         #     due_dt = datetime.strptime(due_date, "%Y-%m-%d %H:%M")
         print("Start and end dates:", start_date, due_date)
-        task_data = TaskCreateRequest(
-            title=title,
-            description=description,
-            start_date=start_date,
-            due_date=due_date
-        )
+        try:
+            task_data = TaskCreateRequest(
+                title=title,
+                description=description,
+                start_date=start_date,
+                due_date=due_date
+            )
+        except Exception as e:
+            print(f"Error creating task data: {e}")
+            return None
          
         create_response = await client.post(
             f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/",
@@ -215,4 +219,44 @@ async def get_submitted_tasks() -> List[Dict[str, Any]]:
     except Exception as e:
         print(f"Error getting submitted tasks: {e}")
         return []
+
+
+async def get_overdue_tasks() -> List[Dict[str, Any]]:
+    """Get all tasks that are overdue but not marked as overdue yet"""
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.get(
+            f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/overdue"
+        )
+        response.raise_for_status()
+        tasks = response.json()
+        return tasks if tasks else []
+    
+
+# TODO: check whether system can be simpflified to one without this endpoint
+async def mark_task_as_overdue(task_id: str) -> bool:
+    """Mark task as overdue"""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.post(
+                f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/{task_id}/mark-overdue"
+            )
+            response.raise_for_status()
+            return True
+    except Exception as e:
+        print(f"Error marking task as overdue: {e}")
+        return False
+
+
+async def mark_overdue_notification_sent(task_id: str) -> bool:
+    """Mark that overdue notification was sent"""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.post(
+                f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/{task_id}/mark-overdue-notification"
+            )
+            response.raise_for_status()
+            return True
+    except Exception as e:
+        print(f"Error marking overdue notification: {e}")
+        return False
 

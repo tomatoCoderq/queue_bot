@@ -9,6 +9,7 @@ from bot.modules.start.handlers import router as start_router
 from bot.modules.start.windows import create_dialogs
 from bot.modules.tasks.windows import create_task_dialogs
 from bot.modules.tasks.handlers import router as tasks_router
+from bot.scheduler import setup_scheduler, shutdown_scheduler
 
 
 dp = Dispatcher()
@@ -39,6 +40,9 @@ async def main():
     dp.include_router(student_tasks_dialog)
     dp.include_router(operator_tasks_dialog)
 
+    # Setup scheduler
+    await setup_scheduler()
+
     # Routers from all handlers
     # dp.include_router(client_details.router)
     # dp.include_router(operator_details.teacher_router)
@@ -50,7 +54,11 @@ async def main():
     # dp.include_router(operator_students_cards.router)
 
     # await bot.delete_webhook()
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        # Shutdown scheduler on bot shutdown
+        await shutdown_scheduler()
 
 if __name__ == "__main__":
     asyncio.run(main())

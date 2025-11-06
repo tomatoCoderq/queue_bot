@@ -140,3 +140,46 @@ async def read_submitted_tasks(session: DbSession):  # type: ignore
     statement = select(Task).where(Task.status == "submitted")
     result = await session.execute(statement)
     return result.scalars().all()
+
+
+async def read_overdue_tasks(session: DbSession):  # type: ignore
+    """
+    Get all tasks that are overdue but not yet marked as overdue.
+    Only checks tasks with statuses: pending, in_progress, rejected
+    """
+    from datetime import datetime, timezone
+    
+    # Use timezone-aware datetime
+    now = datetime.now(timezone.utc)
+    
+    print(f"🔍 Checking for overdue tasks at {now}")
+    
+    statement = select(Task).where(
+        Task.due_date != None,  # type: ignore
+        Task.due_date < now,  # type: ignore
+        Task.status.in_(["pending", "in_progress", "rejected"])  # type: ignore
+    )
+    result = await session.execute(statement)
+    tasks = result.scalars().all()
+    
+    print(f"📊 Found {len(tasks)} overdue tasks")
+    for task in tasks:
+        print(f"  - Task: {task.title}, Due: {task.due_date}, Status: {task.status}")
+    
+    return tasks
+
+
+async def mark_task_as_overdue_repo(task: Task, session: DbSession):  # type: ignore
+    """Mark task as overdue"""
+    task.status = "overdue"
+    await session.commit()
+    await session.refresh(task)
+    return task
+
+
+async def mark_overdue_notification_sent_repo(task: Task, session: DbSession):  # type: ignore
+    """Mark that overdue notification was sent for this task"""
+    task.overdue_notification_sent = True
+    await session.commit()
+    await session.refresh(task)
+    return task

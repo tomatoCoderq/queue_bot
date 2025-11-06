@@ -10,6 +10,7 @@ dependencies = [
     "aioschedule>=0.5.2",
     "aiosqlite>=0.21.0",
     "alembic>=1.17.1",
+    "apscheduler>=3.11.1",
     "dotenv>=0.9.9",
     "fastapi[standard]>=0.120.4",
     "greenlet>=3.2.4",
@@ -17,5 +18,6 @@ dependencies = [
     "paracelsus>=0.12.0",
     "pydantic>=2.11.10",
     "pydantic-settings>=2.11.0",
+    "pytz>=2025.2",
     "sqlmodel>=0.0.27",
 ]

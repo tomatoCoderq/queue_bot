@@ -158,8 +158,14 @@ async def get_task_detail_data(dialog_manager: DialogManager, **kwargs) -> Dict[
     task["has_rejection"] = bool(task.get("rejection_comment"))
     task["rejection_comment"] = task.get("rejection_comment", "")
     
+    # Check if task is overdue
+    is_overdue = status == "overdue"
+    overdue_warning = ""
+    if is_overdue:
+        overdue_warning = "\n\n⚠️ <b>ВНИМАНИЕ: Задача просрочена!</b>\nДедлайн уже прошел. Завершите задачу как можно скорее."
+    
     # Check if task can be submitted (not completed or already submitted)
-    can_submit = status in ["pending", "in_progress", "rejected"]
+    can_submit = status in ["pending", "in_progress", "rejected", "overdue"]
     
     # Get student name if operator is viewing
     student_name = dialog_manager.dialog_data.get("selected_student_name", "")
@@ -168,6 +174,8 @@ async def get_task_detail_data(dialog_manager: DialogManager, **kwargs) -> Dict[
         "task": task,
         "student_name": student_name,
         "can_submit": can_submit,
+        "is_overdue": is_overdue,
+        "overdue_warning": overdue_warning,
     }
 
 
@@ -314,7 +322,7 @@ async def get_create_task_confirm_data(dialog_manager: DialogManager, **kwargs) 
 # ============ HELPER FUNCTIONS ============
 
 def format_date(date_str: str) -> str:
-    """Format date string to readable format"""
+    """Format date string to readable format with time"""
     if not date_str or date_str == "Не указано":
         return "Не указано"
     
@@ -327,7 +335,11 @@ def format_date(date_str: str) -> str:
     for fmt in formats_to_try:
         try:
             dt = datetime.strptime(date_str.split('+')[0].split('Z')[0], fmt)
-            return dt.strftime("%d.%m.%Y")
+            # Include time if it's present in the format
+            if 'H' in fmt:
+                return dt.strftime("%d.%m.%Y %H:%M")
+            else:
+                return dt.strftime("%d.%m.%Y")
         except ValueError:
             continue
     

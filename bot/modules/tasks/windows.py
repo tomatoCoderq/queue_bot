@@ -133,6 +133,10 @@ def create_task_dialogs():
             "❌ Комментарий преподавателя:\n{task[rejection_comment]}\n\n",
             when="task[has_rejection]"
         ),
+        Format(
+            "{overdue_warning}\n",
+            when="is_overdue"
+        ),
         Button(
             Const("✅ Завершить задание"),
             id="submit_task",

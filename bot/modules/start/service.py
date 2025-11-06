@@ -19,6 +19,22 @@ async def get_user(telegram_id: int) -> Optional[Dict[str, Any]]:
             return user
         
     return None
+
+
+async def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
+    """Get user by UUID"""
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.get(f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/users/{user_id}")
+        if response.status_code == 404:
+            print("User not found:", user_id)
+            return None
+        
+        user = response.json()
+        if user:
+            print("Fetched user:", user)
+            return user
+        
+    return None
         
     
 
