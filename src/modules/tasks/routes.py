@@ -1,9 +1,6 @@
 from typing import List
 from fastapi import APIRouter as Router, HTTPException
 
-from aiogram import Bot
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from src.config import settings
 
 from src.storages.models import Task
 from src.modules.tasks.schemes import *
@@ -102,11 +99,11 @@ async def assign_task_to_user(task_id: UUID, user_id: UUID, session: DbSession):
         raise HTTPException(status_code=404, detail="Task not found")
 
     # Get student by user_id and use their student.id for assignment
-    student = await user_repo.read_student_by_user_id(user_id, session)
-    if student is None:
+    client = await user_repo.read_client_by_user_id(user_id, session)
+    if client is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    task = await repo.assign_task_to_user_repo(task, student.id, session)
+    task = await repo.assign_task_to_user_repo(task, client.id, session)
     return task
 
 
@@ -182,7 +179,7 @@ async def approve_task(task_id: UUID, session: DbSession):  # type: ignore
         raise HTTPException(status_code=404, detail="Task not found")
     
     if task.status != "submitted":
-        raise HTTPException(status_code=400, detail=f"Only submitted tasks can be approved")
+        raise HTTPException(status_code=400, detail="Only submitted tasks can be approved")
     
     task = await repo.approve_task_repo(task, session)
     
@@ -201,7 +198,7 @@ async def reject_task(task_id: UUID, reject_data: TaskRejectRequest, session: Db
         raise HTTPException(status_code=404, detail="Task not found")
     
     if task.status != "submitted":
-        raise HTTPException(status_code=400, detail=f"Only submitted tasks can be rejected")
+        raise HTTPException(status_code=400, detail="Only submitted tasks can be rejected")
     
     task = await repo.reject_task_repo(task, reject_data.rejection_comment, session)
     

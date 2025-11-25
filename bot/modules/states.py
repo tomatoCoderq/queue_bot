@@ -33,10 +33,13 @@ class OperatorStudentsStates(StatesGroup):
     TASK_DETAIL = State()
 
 
+class ClientGroupsStates(StatesGroup):
+    GROUP_INFO = State()
+
 class OperatorGroupsStates(StatesGroup):
     GROUP_LIST = State()
-    GROUP_TASKS = State()
-    GROUP_TASK_DETAIL = State()
+    GROUP_ACTIONS = State()
+    GROUP_ADD_USER = State()
 
 
 class OperatorTaskCreateStates(StatesGroup):
@@ -51,7 +54,6 @@ class OperatorGroupCreateStates(StatesGroup):
     CREATE_GROUP_NAME = State()
     CREATE_GROUP_DESCRIPTION = State()
     CREATE_GROUP_CONFIRM = State()
-
 
 class OperatorAddStudentStates(StatesGroup):
     ADD_STUDENT_SELECT_GROUP = State()

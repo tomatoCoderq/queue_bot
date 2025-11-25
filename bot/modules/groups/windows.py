@@ -1,29 +1,27 @@
-from aiogram.fsm.state import State, StatesGroup
 from aiogram_dialog import Dialog, Window
 from aiogram_dialog.widgets.text import Format, Const
-from aiogram_dialog.widgets.kbd import Button, Row, Group
+from aiogram_dialog.widgets.kbd import Button, Row
 from aiogram_dialog.widgets.input import TextInput
-from aiogram_dialog.widgets.kbd import ScrollingGroup, Select, Back
+from aiogram_dialog.widgets.kbd import ScrollingGroup, Select, Back, Cancel
 
-from bot.modules.groups.handlers import on_confirm_group_creation, on_group_title_input
-from bot.modules.states import OperatorGroupsStates, OperatorGroupCreateStates
+from bot.modules.groups.handlers import on_add_specific_user, on_add_user_group, on_confirm_group_creation, on_group_title_input
+from bot.modules.states import ClientGroupsStates, OperatorGroupsStates, OperatorGroupCreateStates
+from bot.modules.tasks.handlers import get_operator_students_data
 
 
 def create_group_dialogs():
     from bot.modules.groups.handlers import (
         get_all_groups_data,
-        
+
         on_back_to_profile,
         # on_group_tasks,
         on_group_create,
         on_group_select,
-        on_group_tasks_clicked
+        on_group_tasks_clicked,
+        getter_group_clients,
+        getter_client_group_info,
     )
-    
-    from bot.modules.tasks.handlers import (
-        on_page_next,
-        on_page_prev,
-    )
+
 
     # Диалог для управления группами (OperatorGroupsStates)
     operator_group_window = Window(
@@ -59,53 +57,58 @@ def create_group_dialogs():
         state=OperatorGroupsStates.GROUP_LIST,
     )
 
-    # operator_group_data = Window(
-    #     Format(
-    #         "👥 Список групп\n\n"
-    #         "Всего групп: {total_groups}\n"
-    #         "Страница {current_page} из {total_pages}\n"
-    #         "━━━━━━━━━━━━━━━━━━━━━━\n"
-    #     ),
-    #     ScrollingGroup(
-    #         Select(
-    #             Format("{item[name]}"),
-    #             id="group_select",
-    #             item_id_getter=lambda x: str(x["name"]),
-    #             items="groups_page",
-    #             on_click=on_group_tasks,
-    #         ),
-    #         id="groups_scroll",
-    #         width=1,
-    #         height=5,  # Max 5 groups per page
-    #     ),
-    #     Row(
-    #         Button(
-    #             Const("◀️ Назад"),
-    #             id="page_prev",
-    #             on_click=on_page_prev,
-    #             when="has_prev",
-    #         ),
-    #         Button(
-    #             Const("Вперёд ▶️"),
-    #             id="page_next",
-    #             on_click=on_page_next,
-    #             when="has_next",
-    #         ),
-    #     ),
-    #     Button(
-    #         Const("🔙 В профиль"),
-    #         id="back_to_profile",
-    #         on_click=on_back_to_profile,
-    #     ),
-    #     getter=get_all_groups_data,
-    #     state=OperatorGroupsStates.GROUP_LIST,
-    # )
+    operator_group_actions = Window(
+        Format(
+            "Действия с группой\n\n"
+            "{students_text}\n\n"
+        ),
 
+        Button(
+            Const("Просмотреть задачи группы"),
+            id="group_tasks",
+            on_click=on_group_tasks_clicked,
+        ),
+        Button(
+            Const("Добавить участника"),
+            id="add_member",
+            on_click=on_add_user_group,
+        ),
+        Cancel(Const("Назад")),
+        getter=getter_group_clients,
+        state=OperatorGroupsStates.GROUP_ACTIONS,
+    )
+
+    operator_add_user_window = Window(
+        Format(
+            "Добавить участника в группу\n\n"
+            "Выберите нужного"
+        ),
+        ScrollingGroup(
+            Select(
+                Format("{item[first_name]} {item[last_name]}"),
+                id="student_select",
+                item_id_getter=lambda x: str(x["telegram_id"]),
+                items="students_page",
+                on_click=on_add_specific_user,
+            ),
+            id="students_scroll",
+            width=1,
+            height=5,  # Max 5 students per page
+        ),
+        Button(
+            Const("🔙 В профиль"),
+            id="back_to_profile",
+            on_click=on_back_to_profile,
+        ),
+        getter=get_operator_students_data,
+        state=OperatorGroupsStates.GROUP_ADD_USER,
+    )
 
     # Первый диалог - только для OperatorGroupsStates
     operator_groups_dialog = Dialog(
         operator_group_window,
-        # добавить другие окна из OperatorGroupsStates если есть
+        operator_group_actions,
+        operator_add_user_window,
     )
 
     # Второй диалог - только для OperatorGroupCreateStates
@@ -160,5 +163,18 @@ def create_group_dialogs():
         create_group_confirm_window,
     )
 
+    client_groups_dialog = Dialog(
+        Window(
+            Format(
+                "Информация о группе\n\n"
+                "{name}\n\n"
+                "{description}"
+            ),
+            Cancel(Const("Назад")),
+            getter=getter_client_group_info,
+            state=ClientGroupsStates.GROUP_INFO,
+        )
+    )
+
     # Возвращаем оба диалога
-    return operator_groups_dialog, create_group_dialog
+    return operator_groups_dialog, create_group_dialog, client_groups_dialog

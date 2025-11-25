@@ -1,8 +1,7 @@
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import model_validator
-from sqlmodel import SQLModel, Field 
+from sqlmodel import SQLModel 
 
 
 
@@ -21,4 +20,12 @@ class GroupReadResponse(SQLModel):
     name: str
     description: Optional[str]
     created_at: datetime
+    
+class ClientReadResponse(SQLModel):
+    id: UUID
+    user_id: UUID
+    telegram_id: int
+    name: Optional[str]
+    surname: Optional[str]
+    
     

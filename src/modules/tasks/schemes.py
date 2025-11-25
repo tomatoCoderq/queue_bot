@@ -52,12 +52,12 @@ class TaskCreateResponse(SQLModel):
 class TaskReadResponse(SQLModel):
     id: UUID = Field(description="Unique identifier for the task")
     title: str = Field(description="Title of the task")
-    description: str = Field(description="Detailed description of the task")
-    status: str = Field(description="Current status of the task")
-    created_at: datetime = Field(description="Timestamp when the task was created")
-    start_date: datetime = Field(description="Start date of the task")
+    description: Optional[str] = Field(description="Detailed description of the task")
+    status: Optional[str] = Field(description="Current status of the task")
+    created_at: Optional[datetime] = Field(description="Timestamp when the task was created")
+    start_date: Optional[datetime] = Field(description="Start date of the task")
     due_date: Optional[datetime] = Field(description="Due date for the task")
-    student_id: Optional[UUID] = Field(description="ID of the student the task is assigned to")
+    client_id: Optional[UUID] = Field(description="ID of the client the task is assigned to")
     group_id: Optional[UUID] = Field(description="ID of the group the task is")
 
 class TaskUpdateRequest(SQLModel):

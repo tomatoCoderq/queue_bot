@@ -1,4 +1,3 @@
-from src.api.app import app
 from src.config import settings
 
 if __name__ == "__main__":

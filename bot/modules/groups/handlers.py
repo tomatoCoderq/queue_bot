@@ -8,7 +8,7 @@ from typing import Dict, Any
 
 from bot.modules.groups import service
 
-from bot.modules.states import OperatorTaskStates as TaskStates
+from bot.modules.states import OperatorGroupsStates, OperatorTaskStates as TaskStates
 
 router = Router()
 
@@ -44,29 +44,51 @@ async def get_all_groups_data(
 
 #     dialog_manager.dialog_data['group_name'] = group_name
 
-async def on_group_tasks_clicked(c, b, m: DialogManager, group_id: int):
+async def on_group_tasks_clicked(c, b, m: DialogManager):
+    
     await m.start(
         TaskStates.LIST_TASKS,
         mode=StartMode.NORMAL,
         data={"context": "group",
-              "group_id": group_id},
+              "name": m.dialog_data.get("selected_group").get("name"),
+              "id": m.dialog_data.get("selected_group").get("id"),},
     )
 
-# async def on_group_tasks(
-#     callback: CallbackQuery,
-#     widget: Select,
-#     dialog_manager: DialogManager,
-#     group_name: str,
-# ):
-#     dialog_manager.dialog_data["selected_group_name"] = group_name
+async def on_add_user_group(c, w, m: DialogManager):
+    """Handle 'Add User to Group' button click - switch to add user state"""
+    await m.switch_to(OperatorGroupsStates.GROUP_ADD_USER)
 
-#     groups = await service.get_all_groups()
-#     selected_group = next((g for g in groups if g["name"] == group_name), None)
+async def on_add_specific_user(callback: CallbackQuery,
+                          widget: Select,
+                          dialog_manager: DialogManager,
+                          item_id: str,
+                          ):
+    print(dialog_manager.dialog_data, dialog_manager.start_data)
+    group = dialog_manager.dialog_data.get("selected_group")
+    if not group:
+        await callback.answer("❌ Группа не найдена")
+        return
+    
+    success = await service.add_student_to_group(group["id"], item_id)
+    if success:
+        await callback.answer("✅ Участник успешно добавлен в группу.")
+    else:
+        await callback.answer("❌ Ошибка при добавлении участника. Попробуйте позже.")
+        
+        
+async def getter_group_clients(dialog_manager: DialogManager, **kwargs):
+    group_id = dialog_manager.dialog_data["selected_group"]["id"]
 
-#     if selected_group:
-#         dialog_manager.dialog_data["selected_group_name"] = selected_group["name"]
+    clients = await service.get_group_clients(group_id)
 
-#     await dialog_manager.switch_to(OperatorGroupsStates.GROUP_TASKS)
+    print("Clients: ", clients)
+    
+    lines = []
+    for i, c in enumerate(clients):
+        lines.append(f"{i+1}. {c['first_name']} {c['last_name']}")
+    students_text = "\n".join(lines) if lines else "В группе нет участников"
+
+    return {"students_text": students_text}
 
 
 async def on_group_select(callback: CallbackQuery,
@@ -83,16 +105,9 @@ async def on_group_select(callback: CallbackQuery,
     if not selected_group:
         await callback.answer("❌ Группа не найден")
         return
+    dialog_manager.dialog_data["selected_group"] = selected_group
 
-    await dialog_manager.start(
-        TaskStates.LIST_TASKS,
-        mode=StartMode.NORMAL,
-        data={
-            "context": "group",
-            "name": selected_group["name"],
-            "id": selected_group["id"]
-        },
-    )
+    await dialog_manager.switch_to(OperatorGroupsStates.GROUP_ACTIONS)
 
 
 async def on_group_create(callback: CallbackQuery,
@@ -192,3 +207,20 @@ async def on_back_to_profile(
     """Go back to profile and clear sort"""
     # dialog_manager.dialog_data.pop("sort_by", None)  # Clear sort
     await dialog_manager.done()
+
+async def getter_client_group_info(dialog_manager: DialogManager, **kwargs):
+    print(dialog_manager.dialog_data, dialog_manager.start_data)
+    # user = await user_service.get_user_by_id(dialog_manager.start_data.get("telegram_id"))
+    
+    group_id = await service.get_client_group(dialog_manager.start_data.get("telegram_id"))
+    group = await service.get_group_by_id(group_id)
+    
+    print("Group info:", group)
+    
+    if not group:
+        return {"group_name": "Группа не найдена", "group_description": ""}
+
+    return {
+        "name": group.name,
+        "description": group.description if hasattr(group, "description") and group.description else "Описание отсутствует",
+    }

@@ -6,79 +6,43 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 
-class BaseUser(SQLModel, table=False):
+class User(SQLModel, table=True):
+    __tablename__ = "users"  # type: ignore
+
     id: UUID = Field(default_factory=uuid4, primary_key=True)
+    telegram_id: int = Field(unique=True, index=True)
+    username: Optional[str] = Field(
+        default=None, index=True, description="Telegram username of the user gotten from Telegram API")
+
+    first_name: str = Field()
+    last_name: str = Field()
     role: str = Field(index=True, description="Role of the user in the system")
+
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="Timestamp when the user was created"
     )
 
 
-class BaseTelegramUser(BaseUser, table=True):
-    __tablename__ = "telegram_users"  # type: ignore
+class Client(SQLModel, table=True):
+    __tablename__ = "clients"  # type: ignore
 
-    telegram_id: int = Field(unique=True, index=True)
-    first_name: str = Field(description="First name of the Telegram user")
-    last_name: str = Field(description="Last name of the Telegram user")
-    username: str = Field(
-        index=True, description="Telegram username of the user gotten from Telegram API")
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="users.id", unique=True)
 
-    operator: Optional["Operator"] = Relationship(back_populates="user")
-    client: Optional["Client"] = Relationship(back_populates="user")
+    group_id: Optional[UUID] = Field(default=None, foreign_key="groups.id",
+                                     description="ID of the group the client is associated with")
+
+    tasks: list["Task"] = Relationship(back_populates="client")
+    group: Optional["Group"] = Relationship(back_populates="clients")
+
 
 
 class Operator(SQLModel, table=True):
     __tablename__ = "operators"  # type: ignore
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    user_id: UUID = Field(foreign_key="telegram_users.id", unique=True)
-
-    type: str = Field(
-        description="Department the operator belongs to: admin, teacher")
-
-    user: Optional[BaseTelegramUser] = Relationship(back_populates="operator")
-
-
-class Client(SQLModel, table=True):
-    __tablename__ = "clients"  # type: ignore
-
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
-    user_id: UUID = Field(foreign_key="telegram_users.id", unique=True)
-
-    user: Optional["BaseTelegramUser"] = Relationship(back_populates="client")
-
-    parent: Optional["Parent"] = Relationship(back_populates="client")
-    student: Optional["Student"] = Relationship(back_populates="client")
-
-
-class Student(SQLModel, table=True):
-    __tablename__ = "students"  # type: ignore
-
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
-    client_id: UUID = Field(foreign_key="clients.id", unique=True)
-
-    parent_name: Optional[str] = Field(
-        default=None, description="Name of the student's parent")
-
-    group_id: Optional[UUID] = Field(default=None, foreign_key="groups.id",
-                                     description="ID of the group the student belongs to")
-
-    client: Client = Relationship(back_populates="student")
-    group: "Group" = Relationship(back_populates="students")
-    tasks: list["Task"] = Relationship(back_populates="student")
-
-
-class Parent(SQLModel, table=True):
-    __tablename__ = "parents"  # type: ignore
-
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
-    client_id: UUID = Field(foreign_key="clients.id", unique=True)
-    child_count: int = Field(default=1)
-
-    tasks: list["Task"] = Relationship(back_populates="parent")
-
-    client: Client = Relationship(back_populates="parent")
+    user_id: UUID = Field(foreign_key="users.id", unique=True)
 
 
 class Group(SQLModel, table=True):
@@ -97,7 +61,10 @@ class Group(SQLModel, table=True):
     tasks: list["Task"] = Relationship(back_populates="group")
 
     '''Students who are in the group'''
-    students: list[Student] = Relationship(back_populates="group")
+    clients: list[Client] = Relationship(
+        back_populates="group",
+        sa_relationship_kwargs={"lazy": "selectin"},
+    )
 
 
 class Task(SQLModel, table=True):
@@ -115,7 +82,6 @@ class Task(SQLModel, table=True):
     created_by: Optional[UUID] = Field(default=None,
                                        description="ID of the user who created the task")
 
-    # TODO: Validate here dates (not earlier than created, due time > start time, etc)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="Timestamp when the task was created"
@@ -135,23 +101,16 @@ class Task(SQLModel, table=True):
         default=None, description="Comment from teacher when task is rejected. Student needs to redo the task")
 
     overdue_notification_sent: bool = Field(
-        default=False, description="Whether overdue notification was sent to student")
+        default=False, description="Whether overdue notification was sent to client")
 
-    # Task will be assigned to a student
-    # However we can specify a group to which the task is assigned
-    # When each student in the group will get a copy of the task assigned to them
-    # And group will get the task assigned to it as well
-    student_id: Optional[UUID] = Field(default=None, foreign_key="students.id",
-                                       description="ID of the student the task is assigned to")
+    client_id: Optional[UUID] = Field(default=None, foreign_key="clients.id",
+                                       description="ID of the client the task is assigned to")
 
     group_id: Optional[UUID] = Field(default=None, foreign_key="groups.id",
                                      description="ID of the group the task is assigned to")
 
-    parent_id: Optional[UUID] = Field(default=None, foreign_key="parents.id")
-
-    student: Optional[Student] = Relationship(back_populates="tasks")
+    client: Optional[Client] = Relationship(back_populates="tasks")
     group: Optional[Group] = Relationship(back_populates="tasks")
-    parent: Optional["Parent"] = Relationship(back_populates="tasks")
 
     @field_validator("start_date", mode="after")
     @classmethod
@@ -178,10 +137,10 @@ class Task(SQLModel, table=True):
 
         if self.due_date is None:
             self.due_date = self.start_date + timedelta(hours=1)
-            
+
         if self.start_date < self.created_at:
             raise ValueError("start_date must not be earlier than created_at")
-            
+
         if self.start_date >= self.due_date:
             raise ValueError("start_date must be earlier than due_date")
 

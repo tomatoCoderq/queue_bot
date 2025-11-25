@@ -2,7 +2,7 @@ from aiogram import Router
 from aiogram.types import CallbackQuery, Message
 from aiogram_dialog import DialogManager
 from aiogram_dialog.widgets.kbd import Button, Select
-from aiogram_dialog.widgets.input import MessageInput, ManagedTextInput
+from aiogram_dialog.widgets.input import ManagedTextInput
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
@@ -14,14 +14,15 @@ from bot.modules.groups import service as groups_service
 
 router = Router()
 
+
 async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
     start_data = dialog_manager.start_data
+    print(start_data, dialog_manager.dialog_data)
     context = start_data.get("context")
-    
+
     if not context:
         raise ValueError("No context given")
-    
-    
+
     print("context: ", start_data.get("context"))
     print(start_data)
 
@@ -51,7 +52,7 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
 
         all_tasks = await tasks_service.get_student_tasks(telegram_id, sort_by=sort_by)
         tasks = all_tasks
-        
+
         print("All tasks for student:", all_tasks)
 
         header = "📚 Мои задачи"
@@ -62,9 +63,9 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
         student_name = start_data.get("student_name", "Неизвестный студент")
 
         all_tasks = await tasks_service.get_student_tasks(student_telegram_id, sort_by=sort_by)
-        
+
         print("All tasks for student by operator:", all_tasks)
-        
+
         tasks = all_tasks
         header = f"👨‍🎓 Задачи студента: {student_name}"
 
@@ -73,18 +74,22 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
         # group_id = start_data.get("group_id")
         group_name = start_data.get("name")
         group: groups_service.GroupReadResponse | None = await groups_service.get_group_by_name(group_name)
-        
+
         group_id = start_data.get("id")
         all_tasks = await groups_service.get_group_tasks(group_id)
-        
+
+        print("All tasks for group by operator:", all_tasks)
+
         tasks = all_tasks
         header = f"👥 Задачи группы: {group_name}"
 
     # фильтрация completed (актуально для студента, но пусть будет везде)
     if not show_completed:
-        tasks = [t for t in tasks if t.get("status", "").lower() != "completed"]
+        tasks = [t for t in tasks if t.get(
+            "status", "").lower() != "completed"]
 
-    completed_count = sum(1 for t in all_tasks if t.get("status", "").lower() == "completed")
+    completed_count = sum(1 for t in all_tasks if t.get(
+        "status", "").lower() == "completed")
 
     for t in tasks:
         status = t.get("status", "pending").lower()
@@ -102,6 +107,7 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
     return {
         "tasks": tasks,
         "tasks_count": len(tasks),
+        "can_create_task": context in ("group", "student_by_operator"),
         "completed_count": completed_count,
         "total_count": len(all_tasks),
         "sort_display": sort_display,
@@ -111,6 +117,7 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
         "student_name": student_name,
         "group_name": group_name,
     }
+
 
 async def task_detail_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
     start_data = dialog_manager.start_data
@@ -144,7 +151,8 @@ async def task_detail_getter(dialog_manager: DialogManager, **kwargs) -> Dict[st
         "overdue": "⚠️ Просрочено",
     }
     status = task.get("status", "pending").lower()
-    task["status_display"] = status_display_map.get(status, status.capitalize())
+    task["status_display"] = status_display_map.get(
+        status, status.capitalize())
     task["start_date"] = start_date
     task["due_date"] = due_date
     task["has_rejection"] = bool(task.get("rejection_comment"))
@@ -172,11 +180,13 @@ async def task_detail_getter(dialog_manager: DialogManager, **kwargs) -> Dict[st
     return {
         "task": task,
         "student_name": student_name,
+        "operator": context in ("student_by_operator", "group"),
         "can_submit": can_submit if context == "student_self" else False,
         "is_overdue": is_overdue,
         "overdue_warning": overdue_warning,
         "context": context,
     }
+
 
 async def on_task_select(
     callback: CallbackQuery,
@@ -189,6 +199,7 @@ async def on_task_select(
     print("start data:", dialog_manager.start_data)
     await dialog_manager.start(TaskStates.DETAIL, data=dialog_manager.start_data)
 
+
 async def on_student_select(
     callback: CallbackQuery,
     widget: Select,
@@ -196,7 +207,8 @@ async def on_student_select(
     item_id: str,
 ):
     students = await user_service.get_all_students()
-    selected_student = next((s for s in students if str(s["telegram_id"]) == item_id), None)
+    selected_student = next(
+        (s for s in students if str(s["telegram_id"]) == item_id), None)
 
     if not selected_student:
         await callback.answer("❌ Студент не найден")
@@ -219,6 +231,7 @@ async def on_student_select(
         },
     )
 
+
 async def on_back_to_profile(
     callback: CallbackQuery,
     button: Button,
@@ -228,21 +241,23 @@ async def on_back_to_profile(
     dialog_manager.dialog_data.pop("sort_by", None)  # Clear sort
     await dialog_manager.done()
 
+
 async def get_operator_students_data(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
     """Getter for operator students list with pagination"""
     # Get current page from dialog_data
     current_page = dialog_manager.dialog_data.get("students_page", 0)
     page_size = 5  # Max 5 students per page
-    
+
     students = await tasks_service.get_all_students()
     total_students = len(students)
-    total_pages = (total_students + page_size - 1) // page_size if total_students > 0 else 1
-    
+    total_pages = (total_students + page_size -
+                   1) // page_size if total_students > 0 else 1
+
     # Calculate pagination
     start_idx = current_page * page_size
     end_idx = start_idx + page_size
     students_page = students[start_idx:end_idx]
-    
+
     return {
         "students_page": students_page,
         "total_students": total_students,
@@ -251,6 +266,21 @@ async def get_operator_students_data(dialog_manager: DialogManager, **kwargs) ->
         "has_prev": current_page > 0,
         "has_next": current_page < total_pages - 1,
     }
+
+async def on_delete_task(c, b, dialog_manager: DialogManager):
+    task_id = dialog_manager.start_data.get("task_id")
+    if not task_id:
+        await c.answer("❌ Ошибка: задача не найдена")
+        return
+
+    success = await tasks_service.delete_task(task_id)
+    
+    if success:
+        await c.answer("✅ Задача успешно удалена")
+        await dialog_manager.done()  # Go back after deletion
+    else:
+        await c.answer("❌ Ошибка при удалении задачи")
+
 
 async def on_page_next(
     callback: CallbackQuery,
@@ -262,6 +292,7 @@ async def on_page_next(
     dialog_manager.dialog_data["students_page"] = current_page + 1
     await callback.answer()
 
+
 async def on_page_prev(
     callback: CallbackQuery,
     button: Button,
@@ -272,8 +303,9 @@ async def on_page_prev(
     dialog_manager.dialog_data["students_page"] = max(0, current_page - 1)
     await callback.answer()
     """Getter for task creation confirmation window"""
-    student_name = dialog_manager.dialog_data.get("selected_student_name", "Неизвестный студент")
-    
+    student_name = dialog_manager.dialog_data.get(
+        "selected_student_name", "Неизвестный студент")
+
     return {
         "student_name": student_name,
     }
@@ -283,13 +315,13 @@ def format_date(date_str: str) -> str:
     """Format date string to readable format with time"""
     if not date_str or date_str == "Не указано":
         return "Не указано"
-    
+
     formats_to_try = [
         "%Y-%m-%dT%H:%M:%S.%f",
         "%Y-%m-%dT%H:%M:%S",
         "%Y-%m-%d",
     ]
-    
+
     for fmt in formats_to_try:
         try:
             dt = datetime.strptime(date_str.split('+')[0].split('Z')[0], fmt)
@@ -300,10 +332,8 @@ def format_date(date_str: str) -> str:
                 return dt.strftime("%d.%m.%Y")
         except ValueError:
             continue
-    
+
     return date_str
-
-
 
 
 async def on_create_task_start(
@@ -314,7 +344,7 @@ async def on_create_task_start(
     """Start task creation flow"""
     from bot.modules.states import OperatorTaskCreateStates
     print("D: ", dialog_manager.dialog_data, dialog_manager.start_data)
-    
+
     await dialog_manager.start(OperatorTaskCreateStates.CREATE_TASK_TITLE, data=dialog_manager.start_data)
 
 
@@ -353,7 +383,7 @@ async def on_task_start_date_input(
     if not validate_date_format(data):
         await message.answer("❌ Неверный формат. Используйте YYYY-MM-DD HH:MM (например: 2025-11-05 14:30)\nИли просто YYYY-MM-DD (например: 2025-11-05)")
         return
-    
+
     dialog_manager.dialog_data["task_start_date"] = data
     from bot.modules.states import OperatorTaskCreateStates
     await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_DUE_DATE)
@@ -370,7 +400,7 @@ async def on_task_due_date_input(
     if not validate_date_format(data):
         await message.answer("❌ Неверный формат. Используйте YYYY-MM-DD HH:MM (например: 2025-11-15 18:00)\nИли просто YYYY-MM-DD (например: 2025-11-15)")
         return
-    
+
     # Validate: due date should be after start date
     start_date_str = dialog_manager.dialog_data.get("task_start_date")
     if start_date_str:
@@ -379,7 +409,7 @@ async def on_task_due_date_input(
         if due_dt <= start_dt:
             await message.answer("❌ Дедлайн должен быть позже даты начала")
             return
-    
+
     dialog_manager.dialog_data["task_due_date"] = data
     from bot.modules.states import OperatorTaskCreateStates
     await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
@@ -397,11 +427,11 @@ async def on_due_date_30min(
     if not start_date_str:
         await callback.answer("❌ Ошибка: дата начала не установлена")
         return
-    
+
     start_dt = parse_datetime(start_date_str)
     due_dt = start_dt + timedelta(minutes=30)
     due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
-    
+
     dialog_manager.dialog_data["task_due_date"] = due_date_str
     from bot.modules.states import OperatorTaskCreateStates
     await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
@@ -418,11 +448,11 @@ async def on_due_date_45min(
     if not start_date_str:
         await callback.answer("❌ Ошибка: дата начала не установлена")
         return
-    
+
     start_dt = parse_datetime(start_date_str)
     due_dt = start_dt + timedelta(minutes=45)
     due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
-    
+
     dialog_manager.dialog_data["task_due_date"] = due_date_str
     from bot.modules.states import OperatorTaskCreateStates
     await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
@@ -439,11 +469,11 @@ async def on_due_date_1hour(
     if not start_date_str:
         await callback.answer("❌ Ошибка: дата начала не установлена")
         return
-    
+
     start_dt = parse_datetime(start_date_str)
     due_dt = start_dt + timedelta(hours=1)
     due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
-    
+
     dialog_manager.dialog_data["task_due_date"] = due_date_str
     from bot.modules.states import OperatorTaskCreateStates
     await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
@@ -460,11 +490,11 @@ async def on_due_date_2hours(
     if not start_date_str:
         await callback.answer("❌ Ошибка: дата начала не установлена")
         return
-    
+
     start_dt = parse_datetime(start_date_str)
     due_dt = start_dt + timedelta(hours=2)
     due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
-    
+
     dialog_manager.dialog_data["task_due_date"] = due_date_str
     from bot.modules.states import OperatorTaskCreateStates
     await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
@@ -481,11 +511,11 @@ async def on_due_date_4hours(
     if not start_date_str:
         await callback.answer("❌ Ошибка: дата начала не установлена")
         return
-    
+
     start_dt = parse_datetime(start_date_str)
     due_dt = start_dt + timedelta(hours=4)
     due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
-    
+
     dialog_manager.dialog_data["task_due_date"] = due_date_str
     from bot.modules.states import OperatorTaskCreateStates
     await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
@@ -502,11 +532,11 @@ async def on_due_date_8hours(
     if not start_date_str:
         await callback.answer("❌ Ошибка: дата начала не установлена")
         return
-    
+
     start_dt = parse_datetime(start_date_str)
     due_dt = start_dt + timedelta(hours=8)
     due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
-    
+
     dialog_manager.dialog_data["task_due_date"] = due_date_str
     from bot.modules.states import OperatorTaskCreateStates
     await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
@@ -523,11 +553,11 @@ async def on_due_date_1day(
     if not start_date_str:
         await callback.answer("❌ Ошибка: дата начала не установлена")
         return
-    
+
     start_dt = parse_datetime(start_date_str)
     due_dt = start_dt + timedelta(days=1)
     due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
-    
+
     dialog_manager.dialog_data["task_due_date"] = due_date_str
     from bot.modules.states import OperatorTaskCreateStates
     await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
@@ -558,32 +588,52 @@ async def on_confirm_create_task(
     description = dialog_manager.dialog_data.get("task_description", "")
     start_date = dialog_manager.dialog_data.get("task_start_date", "")
     due_date = dialog_manager.dialog_data.get("task_due_date", "Не указано")
-    student_telegram_id = dialog_manager.start_data.get("student_id")
-
-    print("telegram: ", student_telegram_id)
+    
+    obj_id: str
+    current_context = dialog_manager.start_data.get("context")
+    
+    if current_context == "group":
+        obj_id = dialog_manager.start_data.get("id") 
+    
+    elif current_context == "student_by_operator":
+        obj_id = dialog_manager.start_data.get("student_id")
+        
+    else:
+        await callback.answer("❌ Ошибка: неверный контекст создания задачи")
+        return
+        
     print(dialog_manager.start_data)
 
-    if not all([title, description, start_date, student_telegram_id]):
-        print([title, description, start_date, student_telegram_id])
+    if not all([title, description, start_date, obj_id]):
+        print([title, description, start_date, obj_id])
         await callback.answer("❌ Ошибка: отсутствуют данные")
         return
-    
-    # Type check for student_telegram_id
-    if not isinstance(student_telegram_id, int):
-        await callback.answer("❌ Ошибка: некорректный ID студента")
-        return
-    
+
     # Create and assign task
-    from bot.modules.tasks.service import create_task_and_assign
+    from bot.modules.tasks.service import create_task_and_assign, create_and_add_task_group
+
+    task: Dict[str, Any] | None = None
+    if current_context == "group":
+        task = await create_and_add_task_group(
+            group_id=obj_id,
+            title=title,
+            description=description,
+            start_date=start_date,
+            due_date=due_date if due_date != "Не указано" else None,
+        )
+        print("here", task)
     
-    task = await create_task_and_assign(
-        title=title,
-        description=description,
-        start_date=start_date,
-        due_date=due_date if due_date != "Не указано" else None,
-        student_telegram_id=student_telegram_id,
-    )
-    
+    if current_context == "student_by_operator":
+        task = await create_task_and_assign(
+            title=title,
+            description=description,
+            start_date=start_date,
+            due_date=due_date if due_date != "Не указано" else None,
+            student_telegram_id=obj_id,
+        )
+        
+    print("c task", task)
+
     if task:
         await callback.answer("✅ Задача успешно создана и назначена студенту!")
         # Clear task creation data
@@ -592,12 +642,11 @@ async def on_confirm_create_task(
         dialog_manager.dialog_data.pop("task_start_date", None)
         dialog_manager.dialog_data.pop("task_due_date", None)
         # Return to student tasks list
-        from bot.modules.states import OperatorStudentsStates
         await dialog_manager.done()
     else:
         await callback.answer("❌ Ошибка при создании задачи. Попробуйте позже.")
 
-# TODO: Now cancel doesn't work and just return task creation page with error
+
 async def on_cancel_create_task(
     callback: CallbackQuery,
     button: Button,
@@ -609,9 +658,8 @@ async def on_cancel_create_task(
     dialog_manager.dialog_data.pop("task_description", None)
     dialog_manager.dialog_data.pop("task_start_date", None)
     dialog_manager.dialog_data.pop("task_due_date", None)
-    
+
     await callback.answer("❌ Создание задачи отменено")
-    from bot.modules.states import OperatorStudentsStates
     await dialog_manager.done()
 
 
@@ -690,14 +738,12 @@ async def on_toggle_completed_tasks(
     """Toggle showing completed tasks"""
     current = dialog_manager.dialog_data.get("show_completed", False)
     dialog_manager.dialog_data["show_completed"] = not current
-    
+
     if not current:
         await callback.answer("✅ Показаны выполненные задачи")
     else:
         await callback.answer("✅ Выполненные задачи скрыты")
 
-
-# ============ TASK SUBMIT/REVIEW HANDLERS ============
 
 async def on_submit_task_button(
     callback: CallbackQuery,
@@ -705,10 +751,9 @@ async def on_submit_task_button(
     dialog_manager: DialogManager,
 ):
     """Handle 'Complete Task' button click - switch to result input state"""
-    from bot.modules.states import StudentStates
-    
-    
-    await dialog_manager.start(StudentStates.SUBMIT_TASK_RESULT, data=dialog_manager.start_data)
+    from bot.modules.states import OperatorTaskStates
+
+    await dialog_manager.switch_to(OperatorTaskStates.SUBMIT_RESULT)
 
 
 async def on_task_result_input(
@@ -720,24 +765,28 @@ async def on_task_result_input(
     """Handle student's task result input"""
     from bot.modules.tasks.service import submit_task_result
     from bot.modules.states import StudentStates
+
+    print("DATA: ")
+    print(dialog_manager.dialog_data)
+    print(dialog_manager.start_data)
     
-    task_id = dialog_manager.dialog_data.get("selected_task_id")
-    
+    task_id = dialog_manager.start_data.get("task_id")
+
     if not task_id:
         await message.answer("❌ Ошибка: задача не найдена")
         await dialog_manager.switch_to(StudentStates.MY_TASKS)
         return
-    
+
     # Submit task via API
     success = await submit_task_result(task_id, text)
-    
+
     if success:
         await message.answer(
             "✅ Задача отправлена на проверку!\n"
             "Преподаватель получит уведомление и проверит вашу работу."
         )
         # Return to task list
-        await dialog_manager.switch_to(StudentStates.MY_TASKS)
+        await dialog_manager.back()
     else:
         await message.answer("❌ Ошибка при отправке задачи. Попробуйте позже.")
         await dialog_manager.switch_to(StudentStates.MY_TASKS)
@@ -746,17 +795,17 @@ async def on_task_result_input(
 async def get_submitted_tasks_data(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
     """Getter for submitted tasks list (for operator)"""
     from bot.modules.tasks.service import get_submitted_tasks
-    
+
     tasks = await get_submitted_tasks()
-    
+
     # Add status emoji and index to each task
     for idx, task in enumerate(tasks):
         task["status_emoji"] = "📝"
         task["index"] = str(idx)
-    
+
     # Store tasks in dialog_data for later retrieval by index
     dialog_manager.dialog_data["submitted_tasks"] = tasks
-    
+
     return {
         "tasks": tasks,
         "tasks_count": len(tasks),
@@ -788,7 +837,7 @@ async def on_submitted_task_select(
 async def get_review_task_detail_data(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
     """Getter for task review detail view"""
     task_id = dialog_manager.dialog_data.get("selected_task_id")
-    
+
     if not task_id:
         return {
             "task": {
@@ -800,9 +849,9 @@ async def get_review_task_detail_data(dialog_manager: DialogManager, **kwargs) -
             },
             "student_name": "—",
         }
-    
+
     task = await tasks_service.get_task_by_id(task_id)
-    
+
     if not task:
         return {
             "task": {
@@ -814,30 +863,30 @@ async def get_review_task_detail_data(dialog_manager: DialogManager, **kwargs) -
             },
             "student_name": "—",
         }
-    
+
     # Format dates
     start_date = task.get("start_date", "Не указано")
     due_date = task.get("due_date", "Не указано")
-    
+
     if start_date and start_date != "Не указано":
         start_date = format_date(start_date)
     if due_date and due_date != "Не указано":
         due_date = format_date(due_date)
-    
+
     task["start_date"] = start_date
     task["due_date"] = due_date
     task["result"] = task.get("result", "Не указан")
-    
+
     # Get student info
     student_id = task.get("student_id")
     student_name = "Неизвестно"
-    
+
     if student_id:
         # Get student name
         student = await user_service.get_user(student_id)
         if student:
             student_name = f"{student.get('first_name', '')} {student.get('last_name', '')}"
-    
+
     return {
         "task": task,
         "student_name": student_name,
@@ -851,15 +900,15 @@ async def on_approve_task(
 ):
     """Approve task completion"""
     from bot.modules.tasks.service import approve_task
-    
+
     task_id = dialog_manager.dialog_data.get("selected_task_id")
-    
+
     if not task_id:
         await callback.answer("❌ Ошибка: задача не найдена")
         return
-    
+
     success = await approve_task(task_id)
-    
+
     if success:
         await callback.answer("✅ Задача одобрена!")
         # TODO: Send notification to student
@@ -876,7 +925,7 @@ async def on_reject_task_button(
 ):
     """Handle 'Reject Task' button click - switch to comment input state"""
     from bot.modules.states import OperatorReviewStates
-    
+
     # Switch to rejection comment input window
     await dialog_manager.switch_to(OperatorReviewStates.REJECT_TASK_COMMENT)
 
@@ -890,17 +939,17 @@ async def on_rejection_comment_input(
     """Handle operator's rejection comment input"""
     from bot.modules.tasks.service import reject_task
     from bot.modules.states import OperatorReviewStates
-    
+
     task_id = dialog_manager.dialog_data.get("selected_task_id")
-    
+
     if not task_id:
         await message.answer("❌ Ошибка: задача не найдена")
         await dialog_manager.switch_to(OperatorReviewStates.SUBMITTED_TASKS)
         return
-    
+
     # Reject task via API
     success = await reject_task(task_id, text)
-    
+
     if success:
         await message.answer(
             "✅ Задача отклонена!\n"

@@ -2,17 +2,14 @@ from typing import List
 from fastapi import APIRouter as Router, HTTPException
 from uuid import UUID
 
-from aiogram import Bot
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from src.modules.tasks.schemes import TaskReadResponse
-from src.config import settings
 from typing import Union
 
 from src.storages.dependencies import DbSession
-from src.storages.models import BaseTelegramUser
 from src.modules.users.schemes import *
 from src.modules.users import repository as repo
 from src.modules.tasks import repository as task_repo
+from src.storages import models
 
 router = Router(prefix="/users", tags=["users"])
 
@@ -31,19 +28,19 @@ async def get_all_users(db: DbSession):  # type: ignore
             #  response_model=CreateUserResponse,
              description="Create a new user")
 async def create_user(user: CreateUserRequest, db: DbSession):  # type: ignore
-    user_validated = BaseTelegramUser.model_validate(user)
+    user_validated = models.User.model_validate(user)
     user_created = None
     
     print("Creating user with role:", user_validated.role)
     
     if (user_validated.role == "STUDENT"):
         print("Creating student user")
-        user_created = await repo.add_student(user_validated, db)
+        user_created = await repo.add_client(user_validated, db)
         print("Created student user:", user_created)
     
-    elif (user_validated.role == "CLIENT"):
-        print("Creating client user")
-        user_created = await repo.add_client(user_validated, db)
+    # elif (user_validated.role == "CLIENT"):
+    #     print("Creating client user")
+    #     user_created = await repo.add_client(user_validated, db)
         
     elif (user_validated.role == "OPERATOR"):
         print("Creating operator user")
@@ -70,6 +67,16 @@ async def get_user(user_id: Union[UUID, int], db: DbSession):  # type: ignore
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
+@router.get("/client/telegram/{telegram_id}/group",
+            status_code=200,
+            # response_model=GetUserResponse,
+            description="Retrieve a specific client user by their Telegram ID")
+async def get_client_group_by_telegram_id(telegram_id: int, db: DbSession):  # type: ignore
+    client = await repo.read_client_by_telegram_id(telegram_id, db)
+    if client is None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return client.group_id
+
 
 @router.delete("/{user_id}",
                status_code=204,
@@ -89,7 +96,7 @@ async def delete_user(user_id: Union[UUID, int], db: DbSession):  # type: ignore
 
 @router.patch("/{user_id}",
             status_code=200,
-            response_model=BaseTelegramUser,
+            response_model=UpdateUserResponse,
             description="Update a specific user by their ID")
 async def update_user(user_id: UUID, user_data: UpdateUserRequest, db: DbSession):  # type: ignore
     existing_user = await repo.read_user_by_id(user_id, db)
@@ -122,25 +129,25 @@ async def get_student_tasks(user_id: Union[UUID, int], session: DbSession, sort:
         raise HTTPException(status_code=400, detail="User is not a student")
 
     if isinstance(user_id, int):
-        student = await repo.get_student_by_telegram_id(user_id, session)
+        client = await repo.read_client_by_telegram_id(user_id, session)
     else:
-        student = await repo.get_student_by_user_id(user_id, session)
-    if student is None:
-        raise HTTPException(status_code=404, detail="Student not found")
+        client = await repo.read_client_by_user_id(user_id, session)
+    if client is None:
+        raise HTTPException(status_code=404, detail="Client not found")
 
-    print("Found student:", student)
+    print("Found client:", client)
     
     tasks = None
-    if sort == None:
-        tasks = await task_repo.read_tasks_by_student(student.id, session)
+    if sort is None:
+        tasks = await task_repo.read_tasks_by_student(client.id, session)
     
     if sort == "start_time":
-        tasks = await task_repo.read_tasks_by_student_sort_start_time(student.id, session)
+        tasks = await task_repo.read_tasks_by_student_sort_start_time(client.id, session)
         
     if sort == "end_time":
-        tasks = await task_repo.read_tasks_by_student_sort_end_time(student.id, session)
+        tasks = await task_repo.read_tasks_by_student_sort_end_time(client.id, session)
 
     if sort == "status":
-        tasks = await task_repo.read_tasks_by_student_sort_status(student.id, session)
+        tasks = await task_repo.read_tasks_by_student_sort_status(client.id, session)
 
     return tasks

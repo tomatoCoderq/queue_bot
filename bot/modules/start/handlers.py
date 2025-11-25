@@ -5,7 +5,7 @@ from aiogram_dialog.widgets.kbd import Button
 from aiogram_dialog.widgets.input import ManagedTextInput
 from aiogram.types import CallbackQuery, Message
 
-from bot.modules.states import RegistrationStates, ProfileStates
+from bot.modules.states import ClientGroupsStates, OperatorTaskStates, RegistrationStates, ProfileStates
 
 from bot.modules.users import service as user_service
 
@@ -176,10 +176,9 @@ async def on_menu_tasks(
         return
 
     if role == "student":
-        from bot.modules.states import StudentStates
 
         await dialog_manager.start(
-            StudentStates.MY_TASKS,
+            OperatorTaskStates.LIST_TASKS,
             mode=StartMode.NORMAL,
             data={
                 "context":"student_self",
@@ -217,12 +216,11 @@ async def on_groups_tasks(callback: CallbackQuery,
     role = user.get("role", "").lower()
 
     if role == "student":
-        await callback.answer("🚧 Функционал для студентов в разработке")
-        return
-
-    if role == "parent":
-        await callback.answer("🚧 Функционал для родителей в разработке")
-        return
+        await dialog_manager.start(
+            ClientGroupsStates.GROUP_INFO,
+            mode=StartMode.NORMAL,
+            data={"telegram_id": telegram_id}
+        )
 
     if role == "operator":
         await dialog_manager.start(

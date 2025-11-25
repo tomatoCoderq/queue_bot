@@ -1,16 +1,12 @@
 import asyncio.subprocess
 import os
 import sqlite3
-import time
-from email.policy import default
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
-from aiogram.client.session.base import BaseSession
 from aiogram.enums import ParseMode
 from loguru import logger
 from asyncio import *
-import aioschedule as schedule
 
 
 from app.handlers import start
@@ -18,17 +14,13 @@ from app.handlers import client_details
 from app.handlers import operator_details
 from app.handlers import test_handlers
 from dotenv import load_dotenv
-from app.handlers import test_handlers
 from app.handlers import add_tasks
 from app.utils import back_routes
-from app.handlers import teacher_proceed_tasks
-from app.handlers import teacher_tasks_queue
 # from app.handlers import details_client
 from app.handlers import operator_students_cards
 from app.handlers import client_equipment
 from app.handlers import operator_equipment
 
-from xlsxwriter.workbook import Workbook
 
 logger.add("logs.log", format="{time}| {level} | {message}", rotation="10MB")
 dp = Dispatcher()

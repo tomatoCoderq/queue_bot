@@ -1,7 +1,5 @@
 # deps.py
-from fastapi import Request, Depends, HTTPException, status
-from sqlmodel import Session
-from src.modules.users import repository as repo
+from fastapi import Request, HTTPException, status
 
 def get_optional_user_id(request: Request) -> str | None:
     return getattr(request.state, "user_id", None)

@@ -1,6 +1,5 @@
 import httpx
 from typing import Optional, List, Dict, Any
-from datetime import datetime
 from src.config import settings
 
 from src.modules.tasks.schemes import *
@@ -80,18 +79,6 @@ async def create_task_and_assign(
         Created and assigned task, or None if failed
     """
     async with httpx.AsyncClient(timeout=10) as client:
-        # Step 1: Create task
-        # task_data = {
-        #     "title": title,
-        #     "description": description,
-        #     "start_date": start_date,
-        #     "due_date": due_date,
-        # }
-        
-        # start_dt = datetime.strptime(start_date, "%Y-%m-%d %H:%M")
-        # due_dt = None
-        # if due_date and due_date != "Не указано":
-        #     due_dt = datetime.strptime(due_date, "%Y-%m-%d %H:%M")
         print("Start and end dates:", start_date, due_date)
         try:
             task_data = TaskCreateRequest(
@@ -260,3 +247,56 @@ async def mark_overdue_notification_sent(task_id: str) -> bool:
         print(f"Error marking overdue notification: {e}")
         return False
 
+
+async def create_and_add_task_group(
+    group_id: str,
+    title: str,
+    description: str,
+    start_date: str,
+    due_date: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            task_data = TaskCreateRequest(
+                title=title,
+                description=description,
+                start_date=start_date,
+                due_date=due_date
+            )
+        except Exception as e:
+            print(f"Error creating task data: {e}")
+            return None
+         
+        create_response = await client.post(
+            f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/",
+            json=task_data.model_dump(exclude_none=True)
+        )
+        create_response.raise_for_status()
+        created_task = create_response.json()
+        
+        task_id = created_task.get("id")
+        if not task_id:
+            return None
+        
+        assign_response = await client.post(
+            f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/{task_id}/assign_group/{group_id}"
+        )
+        
+        assign_response.raise_for_status()
+        # assigned_task = assign_response.json()
+        assigned_task = create_response.json()
+        
+        print("ass", assigned_task)
+        
+        return assigned_task
+    
+async def delete_task(task_id: str):
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.delete(
+                f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/{task_id}"
+            )
+            response.raise_for_status()
+            return True
+    except Exception:
+        return False

@@ -2,7 +2,6 @@ import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.executors.asyncio import AsyncIOExecutor
-from datetime import datetime
 import pytz
 
 logger = logging.getLogger(__name__)

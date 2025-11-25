@@ -124,7 +124,7 @@ def create_dialogs():
                 Format("Группы и задачи"),
                 id="menu_groups",
                 on_click=on_groups_tasks,
-                when="is_operator",
+                # when="is_operator",
             ),
             Button(
                 Const("📝 Задачи на проверке"),

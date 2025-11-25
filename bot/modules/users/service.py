@@ -1,7 +1,6 @@
 import httpx
 from typing import Optional, Dict, Any
 from loguru import logger
-import os
 from src.config import settings
 from src.modules.users.schemes import *
 
@@ -67,10 +66,7 @@ async def create_user(
         return created_user
         
 
-import httpx
 from typing import Optional, List, Dict, Any
-from datetime import datetime
-from src.config import settings
 
 from src.modules.tasks.schemes import *
 

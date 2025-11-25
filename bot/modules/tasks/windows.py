@@ -3,7 +3,6 @@ from aiogram_dialog.widgets.text import Format, Const
 from aiogram_dialog.widgets.kbd import Button, ScrollingGroup, Select, Back, Row, Cancel
 from aiogram_dialog.widgets.input import TextInput
 from bot.modules.states import (
-    StudentStates,
     OperatorStudentsStates,
     OperatorTaskCreateStates,
     OperatorReviewStates,
@@ -25,10 +24,7 @@ def create_task_dialogs():
         get_operator_students_data,
         on_student_select,
         # get_student_tasks_for_operator_data,
-        on_page_next,
         tasks_list_getter,
-        on_page_prev,
-        # Task creation handlers
         on_create_task_start,
         on_task_title_input,
         on_task_description_input,
@@ -37,6 +33,7 @@ def create_task_dialogs():
         on_no_due_date,
         on_confirm_create_task,
         on_cancel_create_task,
+        task_detail_getter,
         # Quick due date handlers
         on_due_date_30min,
         on_due_date_45min,
@@ -51,8 +48,6 @@ def create_task_dialogs():
         on_sort_by_due_date,
         on_sort_by_status,
         on_sort_reset,
-        on_toggle_completed_tasks,
-        # Submit/Review handlers
         on_submit_task_button,
         on_task_result_input,
         get_submitted_tasks_data,
@@ -61,98 +56,8 @@ def create_task_dialogs():
         on_approve_task,
         on_reject_task_button,
         on_rejection_comment_input,
-        task_detail_getter
-    )
-
-    # ============ STUDENT WINDOWS ============
-
-    # Window 1: Student's tasks list
-    student_tasks_window = Window(
-        Format(
-            "📚 Мои задачи\n\n"
-            "Показано задач: {tasks_count}\n"
-            "Выполнено: {completed_count} из {total_count}\n"
-            "Сортировка: {sort_display}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-        ),
-        ScrollingGroup(
-            Select(
-                Format("{item[title]} ({item[status_emoji]})"),
-                id="task_select",
-                item_id_getter=lambda x: x["id"],
-                items="tasks",
-                on_click=on_task_select,
-            ),
-            id="tasks_scroll",
-            width=1,
-            height=5,
-        ),
-        Row(
-            Button(
-                Const("📅 Начало"),
-                id="sort_start",
-                on_click=on_sort_by_start_date,
-            ),
-            Button(
-                Const("⏰ Дедлайн"),
-                id="sort_due",
-                on_click=on_sort_by_due_date,
-            ),
-        ),
-        Row(
-            Button(
-                Const("🎯 Статус"),
-                id="sort_status",
-                on_click=on_sort_by_status,
-            ),
-            Button(
-                Const("🔄 Сброс"),
-                id="sort_reset",
-                on_click=on_sort_reset,
-            ),
-        ),
-        Button(
-            Format("{toggle_button_text}"),
-            id="toggle_completed",
-            on_click=on_toggle_completed_tasks,
-        ),
-        Button(
-            Const("🔙 В профиль"),
-            id="back_to_profile",
-            on_click=on_back_to_profile,
-        ),
-        getter=tasks_list_getter,
-        state=StudentStates.MY_TASKS,
-    )
-
-    # Window 2: Task detail for student
-    student_task_detail_window = Window(
-        Format(
-            "📋 Детали задачи\n\n"
-            "📌 Название: {task[title]}\n"
-            "📝 Описание: {task[description]}\n"
-            "📅 Дата начала: {task[start_date]}\n"
-            "⏰ Дедлайн: {task[due_date]}\n"
-            "🎯 Статус: {task[status_display]}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n",
-        ),
-        Format(
-            "❌ Комментарий преподавателя:\n{task[rejection_comment]}\n\n",
-            when="task[has_rejection]"
-        ),
-        Format(
-            "{overdue_warning}\n",
-            when="is_overdue"
-        ),
-        Button(
-            Const("✅ Завершить задание"),
-            id="submit_task",
-            on_click=on_submit_task_button,
-            # when="can_submit",
-        ),
-        Back(Const("🔙 К списку задач")),
-        getter=task_detail_getter,
-        state=StudentStates.TASK_DETAIL,
+        on_delete_task
+        
     )
 
     # Window 3: Submit task result
@@ -167,7 +72,7 @@ def create_task_dialogs():
             on_success=on_task_result_input,
         ),
         Back(Const("🔙 Отмена")),
-        state=StudentStates.SUBMIT_TASK_RESULT,
+        state=OperatorTaskStates.SUBMIT_RESULT,
     )
 
     # ============ OPERATOR WINDOWS ============
@@ -453,6 +358,7 @@ def create_task_dialogs():
             Const("➕ Создать задачу"),
             id="create_task_btn",
             on_click=on_create_task_start,
+            when="can_create_task",
         ),
         Cancel(Const("🔙 К списку студентов")),
         state=OperatorTaskStates.LIST_TASKS,
@@ -469,6 +375,12 @@ def create_task_dialogs():
             "━━━━━━━━━━━━━━━━━━━━━━\n"
         ),
         Button(
+            Const("Удалить"),
+            id="delete_task",
+            on_click=on_delete_task,
+            when="operator",
+        ),
+        Button(
             Const("✅ Завершить задание"),
             id="submit_task",
             on_click=on_submit_task_button,
@@ -482,12 +394,6 @@ def create_task_dialogs():
     tasks_dialog = Dialog(
         tasks_list_window,
         tasks_detail_window,
-    )
-
-    # Create dialogs
-    student_tasks_dialog = Dialog(
-        student_tasks_window,
-        student_task_detail_window,
         student_submit_result_window,
     )
 
@@ -510,7 +416,6 @@ def create_task_dialogs():
     )
 
     return (
-        student_tasks_dialog,
         operator_students_dialog,
         operator_task_create_dialog,
         operator_review_dialog,
