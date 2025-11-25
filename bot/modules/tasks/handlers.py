@@ -6,47 +6,29 @@ from aiogram_dialog.widgets.input import MessageInput, ManagedTextInput
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
-from bot.modules.tasks.service import get_student_tasks, get_task_by_id, get_all_students
-from bot.modules.start.service import get_user
+from bot.modules.states import OperatorTaskStates as TaskStates
+from bot.modules.tasks import service as tasks_service
+from bot.modules.users import service as user_service
+from bot.modules.groups import service as groups_service
+
 
 router = Router()
 
+async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    start_data = dialog_manager.start_data
+    context = start_data.get("context")
+    
+    if not context:
+        raise ValueError("No context given")
+    
+    
+    print("context: ", start_data.get("context"))
+    print(start_data)
 
-# ============ STUDENT HANDLERS ============
-
-async def get_student_tasks_data(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
-    """Getter for student tasks list"""
-    telegram_id = None
-    
-    if dialog_manager.event.from_user:
-        telegram_id = dialog_manager.event.from_user.id
-    
-    if not telegram_id:
-        return {
-            "tasks": [], 
-            "tasks_count": 0, 
-            "sort_display": "По умолчанию",
-            "show_completed": False,
-            "toggle_button_text": "👁 Показать выполненные"
-        }
-    
-    # Get current sort type from dialog_data (default: None)
+    # общий sort + show_completed, как у тебя
     sort_by = dialog_manager.dialog_data.get("sort_by", None)
-    
-    # Get show_completed flag (default: False)
     show_completed = dialog_manager.dialog_data.get("show_completed", False)
-    
-    tasks = await get_student_tasks(telegram_id, sort_by=sort_by)
-    
-    # Filter out completed tasks if show_completed is False
-    if not show_completed:
-        tasks = [task for task in tasks if task.get("status", "").lower() != "completed"]
-    
-    # Count total and completed tasks
-    all_tasks = await get_student_tasks(telegram_id, sort_by=sort_by)
-    completed_count = sum(1 for task in all_tasks if task.get("status", "").lower() == "completed")
-    
-    # Add status emoji to each task
+
     status_emoji_map = {
         "pending": "⏳",
         "in_progress": "🔄",
@@ -55,22 +37,68 @@ async def get_student_tasks_data(dialog_manager: DialogManager, **kwargs) -> Dic
         "rejected": "❌",
         "overdue": "⚠️",
     }
-    
-    for task in tasks:
-        status = task.get("status", "pending").lower()
-        task["status_emoji"] = status_emoji_map.get(status, "❓")
-    
-    # Get current sort display name
+
+    tasks = []
+    header = ""
+    student_name = None
+    group_name = None
+
+    # Student checks his own tasks
+    if context == "student_self":
+        telegram_id = dialog_manager.event.from_user.id
+        if not telegram_id:
+            raise ValueError("No telegram_id in event")
+
+        all_tasks = await tasks_service.get_student_tasks(telegram_id, sort_by=sort_by)
+        tasks = all_tasks
+        
+        print("All tasks for student:", all_tasks)
+
+        header = "📚 Мои задачи"
+
+    # Operator checks tasks of a specific student
+    elif context == "student_by_operator":
+        student_telegram_id = start_data.get("student_id")
+        student_name = start_data.get("student_name", "Неизвестный студент")
+
+        all_tasks = await tasks_service.get_student_tasks(student_telegram_id, sort_by=sort_by)
+        
+        print("All tasks for student by operator:", all_tasks)
+        
+        tasks = all_tasks
+        header = f"👨‍🎓 Задачи студента: {student_name}"
+
+    # === 3. Оператор смотрит задачи группы ===
+    elif context == "group":
+        # group_id = start_data.get("group_id")
+        group_name = start_data.get("name")
+        group: groups_service.GroupReadResponse | None = await groups_service.get_group_by_name(group_name)
+        
+        group_id = start_data.get("id")
+        all_tasks = await groups_service.get_group_tasks(group_id)
+        
+        tasks = all_tasks
+        header = f"👥 Задачи группы: {group_name}"
+
+    # фильтрация completed (актуально для студента, но пусть будет везде)
+    if not show_completed:
+        tasks = [t for t in tasks if t.get("status", "").lower() != "completed"]
+
+    completed_count = sum(1 for t in all_tasks if t.get("status", "").lower() == "completed")
+
+    for t in tasks:
+        status = t.get("status", "pending").lower()
+        t["status_emoji"] = status_emoji_map.get(status, "❓")
+
     sort_display = {
         None: "По умолчанию",
         "start_time": "По дате начала ⬆️",
         "end_time": "По дедлайну ⬆️",
-        "status": "По статусу ⬆️"
+        "status": "По статусу ⬆️",
     }.get(sort_by, "По умолчанию")
-    
-    # Toggle button text
+
     toggle_button_text = "👁 Скрыть выполненные" if show_completed else "👁 Показать выполненные"
-    
+
     return {
         "tasks": tasks,
         "tasks_count": len(tasks),
@@ -79,69 +107,34 @@ async def get_student_tasks_data(dialog_manager: DialogManager, **kwargs) -> Dic
         "sort_display": sort_display,
         "show_completed": show_completed,
         "toggle_button_text": toggle_button_text,
+        "header": header,
+        "student_name": student_name,
+        "group_name": group_name,
     }
 
+async def task_detail_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    start_data = dialog_manager.start_data
+    print("found task_id: ", start_data, dialog_manager.dialog_data)
+    context = start_data.get("context", "student_self")
 
-async def on_task_select(
-    callback: CallbackQuery,
-    widget: Select,
-    dialog_manager: DialogManager,
-    item_id: str,
-):
-    """Handle task selection - save task_id and switch to detail view"""
-    dialog_manager.dialog_data["selected_task_id"] = item_id
-    
-    # Determine which state to go to based on current state
-    from bot.modules.start.windows import StudentStates, OperatorStates
-    
-    current_state = dialog_manager.current_context().state
-    
-    if current_state == StudentStates.MY_TASKS:
-        await dialog_manager.switch_to(StudentStates.TASK_DETAIL)
-    elif current_state == OperatorStates.STUDENT_TASKS:
-        await dialog_manager.switch_to(OperatorStates.TASK_DETAIL)
-
-
-async def get_task_detail_data(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
-    """Getter for task detail view"""
-    task_id = dialog_manager.dialog_data.get("selected_task_id")
-    
+    task_id = start_data.get("task_id")
+    print(task_id)
     if not task_id:
-        return {
-            "task": {
-                "title": "Ошибка",
-                "description": "Задача не найдена",
-                "start_date": "—",
-                "due_date": "—",
-                "status_display": "—",
-            },
-            "student_name": "—",
-        }
-    
-    task = await get_task_by_id(task_id)
-    
+        return {}
+
+    task = await tasks_service.get_task_by_id(task_id)
     if not task:
-        return {
-            "task": {
-                "title": "Ошибка",
-                "description": "Задача не найдена",
-                "start_date": "—",
-                "due_date": "—",
-                "status_display": "—",
-            },
-            "student_name": "—",
-        }
-    
-    # Format dates
+        return {}
+
+    # форматирование дат – оставляем твой код
     start_date = task.get("start_date", "Не указано")
     due_date = task.get("due_date", "Не указано")
-    
+
     if start_date and start_date != "Не указано":
         start_date = format_date(start_date)
     if due_date and due_date != "Не указано":
         due_date = format_date(due_date)
-    
-    # Status display
+
     status_display_map = {
         "pending": "⏳ Ожидает",
         "in_progress": "🔄 В работе",
@@ -150,34 +143,81 @@ async def get_task_detail_data(dialog_manager: DialogManager, **kwargs) -> Dict[
         "rejected": "❌ Отклонено",
         "overdue": "⚠️ Просрочено",
     }
-    
     status = task.get("status", "pending").lower()
     task["status_display"] = status_display_map.get(status, status.capitalize())
     task["start_date"] = start_date
     task["due_date"] = due_date
     task["has_rejection"] = bool(task.get("rejection_comment"))
     task["rejection_comment"] = task.get("rejection_comment", "")
-    
-    # Check if task is overdue
+
     is_overdue = status == "overdue"
     overdue_warning = ""
     if is_overdue:
-        overdue_warning = "\n\n⚠️ <b>ВНИМАНИЕ: Задача просрочена!</b>\nДедлайн уже прошел. Завершите задачу как можно скорее."
-    
-    # Check if task can be submitted (not completed or already submitted)
+        overdue_warning = (
+            "\n\n⚠️ <b>ВНИМАНИЕ: Задача просрочена!</b>\n"
+            "Дедлайн уже прошел. Завершите задачу как можно скорее."
+        )
+
     can_submit = status in ["pending", "in_progress", "rejected", "overdue"]
-    
-    # Get student name if operator is viewing
-    student_name = dialog_manager.dialog_data.get("selected_student_name", "")
-    
+
+    # имя студента – для операторских сценариев
+    student_name = None
+    if context in ("student_by_operator", "group"):
+        student_id = task.get("student_id")
+        if student_id:
+            student = await user_service.get_user(student_id)
+            if student:
+                student_name = f"{student.get('first_name', '')} {student.get('last_name', '')}"
+
     return {
         "task": task,
         "student_name": student_name,
-        "can_submit": can_submit,
+        "can_submit": can_submit if context == "student_self" else False,
         "is_overdue": is_overdue,
         "overdue_warning": overdue_warning,
+        "context": context,
     }
 
+async def on_task_select(
+    callback: CallbackQuery,
+    widget: Select,
+    dialog_manager: DialogManager,
+    item_id: str,
+):
+    dialog_manager.dialog_data["selected_task_id"] = item_id
+    dialog_manager.start_data["task_id"] = item_id
+    print("start data:", dialog_manager.start_data)
+    await dialog_manager.start(TaskStates.DETAIL, data=dialog_manager.start_data)
+
+async def on_student_select(
+    callback: CallbackQuery,
+    widget: Select,
+    dialog_manager: DialogManager,
+    item_id: str,
+):
+    students = await user_service.get_all_students()
+    selected_student = next((s for s in students if str(s["telegram_id"]) == item_id), None)
+
+    if not selected_student:
+        await callback.answer("❌ Студент не найден")
+        return
+
+    student_name = f"{selected_student['first_name']} {selected_student['last_name']}"
+    student_telegram_id = int(item_id)
+
+    from aiogram_dialog import StartMode
+
+    dialog_manager.dialog_data["selected_student_telegram_id"] = student_telegram_id
+
+    await dialog_manager.start(
+        TaskStates.LIST_TASKS,
+        mode=StartMode.NORMAL,
+        data={
+            "context": "student_by_operator",
+            "student_id": student_telegram_id,
+            "student_name": student_name,
+        },
+    )
 
 async def on_back_to_profile(
     callback: CallbackQuery,
@@ -188,16 +228,13 @@ async def on_back_to_profile(
     dialog_manager.dialog_data.pop("sort_by", None)  # Clear sort
     await dialog_manager.done()
 
-
-# ============ OPERATOR HANDLERS ============
-
 async def get_operator_students_data(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
     """Getter for operator students list with pagination"""
     # Get current page from dialog_data
     current_page = dialog_manager.dialog_data.get("students_page", 0)
     page_size = 5  # Max 5 students per page
     
-    students = await get_all_students()
+    students = await tasks_service.get_all_students()
     total_students = len(students)
     total_pages = (total_students + page_size - 1) // page_size if total_students > 0 else 1
     
@@ -215,7 +252,6 @@ async def get_operator_students_data(dialog_manager: DialogManager, **kwargs) ->
         "has_next": current_page < total_pages - 1,
     }
 
-
 async def on_page_next(
     callback: CallbackQuery,
     button: Button,
@@ -226,7 +262,6 @@ async def on_page_next(
     dialog_manager.dialog_data["students_page"] = current_page + 1
     await callback.answer()
 
-
 async def on_page_prev(
     callback: CallbackQuery,
     button: Button,
@@ -236,81 +271,6 @@ async def on_page_prev(
     current_page = dialog_manager.dialog_data.get("students_page", 0)
     dialog_manager.dialog_data["students_page"] = max(0, current_page - 1)
     await callback.answer()
-
-
-async def on_student_select(
-    callback: CallbackQuery,
-    widget: Select,
-    dialog_manager: DialogManager,
-    item_id: str,
-):
-    """Handle student selection - save student_id and switch to their tasks"""
-    dialog_manager.dialog_data["selected_student_telegram_id"] = int(item_id)
-    
-    # Get student info to save name
-    students = await get_all_students()
-    selected_student = next((s for s in students if str(s["telegram_id"]) == item_id), None)
-    
-    if selected_student:
-        student_name = f"{selected_student['first_name']} {selected_student['last_name']}"
-        dialog_manager.dialog_data["selected_student_name"] = student_name
-    
-    # Clear sort when selecting new student
-    dialog_manager.dialog_data.pop("sort_by", None)
-    
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.STUDENT_TASKS)
-
-
-async def get_student_tasks_for_operator_data(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
-    """Getter for operator viewing student's tasks"""
-    student_telegram_id = dialog_manager.dialog_data.get("selected_student_telegram_id")
-    student_name = dialog_manager.dialog_data.get("selected_student_name", "Неизвестный студент")
-
-    dialog_manager.dialog_data["student_name"] = student_name
-
-    if not student_telegram_id:
-        return {
-            "tasks": [],
-            "tasks_count": 0,
-            "student_name": student_name,
-            "sort_display": "По умолчанию"
-        }
-    
-    # Get current sort type
-    sort_by = dialog_manager.dialog_data.get("sort_by", None)
-    
-    tasks = await get_student_tasks(student_telegram_id, sort_by=sort_by)
-    
-    # Add status emoji to each task
-    status_emoji_map = {
-        "pending": "⏳",
-        "in_progress": "🔄",
-        "completed": "✅",
-        "overdue": "⚠️",
-    }
-    
-    for task in tasks:
-        status = task.get("status", "pending").lower()
-        task["status_emoji"] = status_emoji_map.get(status, "❓")
-    
-    # Get current sort display name
-    sort_display = {
-        None: "По умолчанию",
-        "start_time": "По дате начала ⬆️",
-        "end_time": "По дедлайну ⬆️",
-        "status": "По статусу ⬆️"
-    }.get(sort_by, "По умолчанию")
-    
-    return {
-        "tasks": tasks,
-        "tasks_count": len(tasks),
-        "student_name": student_name,
-        "sort_display": sort_display
-    }
-
-
-async def get_create_task_confirm_data(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
     """Getter for task creation confirmation window"""
     student_name = dialog_manager.dialog_data.get("selected_student_name", "Неизвестный студент")
     
@@ -318,8 +278,6 @@ async def get_create_task_confirm_data(dialog_manager: DialogManager, **kwargs) 
         "student_name": student_name,
     }
 
-
-# ============ HELPER FUNCTIONS ============
 
 def format_date(date_str: str) -> str:
     """Format date string to readable format with time"""
@@ -346,7 +304,7 @@ def format_date(date_str: str) -> str:
     return date_str
 
 
-# ============ TASK CREATION HANDLERS (FOR OPERATOR) ============
+
 
 async def on_create_task_start(
     callback: CallbackQuery,
@@ -354,8 +312,10 @@ async def on_create_task_start(
     dialog_manager: DialogManager,
 ):
     """Start task creation flow"""
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.CREATE_TASK_TITLE)
+    from bot.modules.states import OperatorTaskCreateStates
+    print("D: ", dialog_manager.dialog_data, dialog_manager.start_data)
+    
+    await dialog_manager.start(OperatorTaskCreateStates.CREATE_TASK_TITLE, data=dialog_manager.start_data)
 
 
 async def on_task_title_input(
@@ -366,8 +326,8 @@ async def on_task_title_input(
 ):
     """Handle task title input"""
     dialog_manager.dialog_data["task_title"] = data
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.CREATE_TASK_DESCRIPTION)
+    from bot.modules.states import OperatorTaskCreateStates
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_DESCRIPTION)
 
 
 async def on_task_description_input(
@@ -378,8 +338,8 @@ async def on_task_description_input(
 ):
     """Handle task description input"""
     dialog_manager.dialog_data["task_description"] = data
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.CREATE_TASK_START_DATE)
+    from bot.modules.states import OperatorTaskCreateStates
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_START_DATE)
 
 
 async def on_task_start_date_input(
@@ -395,8 +355,8 @@ async def on_task_start_date_input(
         return
     
     dialog_manager.dialog_data["task_start_date"] = data
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.CREATE_TASK_DUE_DATE)
+    from bot.modules.states import OperatorTaskCreateStates
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_DUE_DATE)
 
 
 async def on_task_due_date_input(
@@ -421,8 +381,8 @@ async def on_task_due_date_input(
             return
     
     dialog_manager.dialog_data["task_due_date"] = data
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.CREATE_TASK_CONFIRM)
+    from bot.modules.states import OperatorTaskCreateStates
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
 
 
 # ============ QUICK DUE DATE HANDLERS ============
@@ -443,8 +403,8 @@ async def on_due_date_30min(
     due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
     
     dialog_manager.dialog_data["task_due_date"] = due_date_str
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.CREATE_TASK_CONFIRM)
+    from bot.modules.states import OperatorTaskCreateStates
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
     await callback.answer(f"✅ Дедлайн: {due_date_str}")
 
 
@@ -464,8 +424,8 @@ async def on_due_date_45min(
     due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
     
     dialog_manager.dialog_data["task_due_date"] = due_date_str
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.CREATE_TASK_CONFIRM)
+    from bot.modules.states import OperatorTaskCreateStates
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
     await callback.answer(f"✅ Дедлайн: {due_date_str}")
 
 
@@ -485,8 +445,8 @@ async def on_due_date_1hour(
     due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
     
     dialog_manager.dialog_data["task_due_date"] = due_date_str
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.CREATE_TASK_CONFIRM)
+    from bot.modules.states import OperatorTaskCreateStates
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
     await callback.answer(f"✅ Дедлайн: {due_date_str}")
 
 
@@ -506,8 +466,8 @@ async def on_due_date_2hours(
     due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
     
     dialog_manager.dialog_data["task_due_date"] = due_date_str
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.CREATE_TASK_CONFIRM)
+    from bot.modules.states import OperatorTaskCreateStates
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
     await callback.answer(f"✅ Дедлайн: {due_date_str}")
 
 
@@ -527,8 +487,8 @@ async def on_due_date_4hours(
     due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
     
     dialog_manager.dialog_data["task_due_date"] = due_date_str
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.CREATE_TASK_CONFIRM)
+    from bot.modules.states import OperatorTaskCreateStates
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
     await callback.answer(f"✅ Дедлайн: {due_date_str}")
 
 
@@ -548,8 +508,8 @@ async def on_due_date_8hours(
     due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
     
     dialog_manager.dialog_data["task_due_date"] = due_date_str
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.CREATE_TASK_CONFIRM)
+    from bot.modules.states import OperatorTaskCreateStates
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
     await callback.answer(f"✅ Дедлайн: {due_date_str}")
 
 
@@ -569,8 +529,8 @@ async def on_due_date_1day(
     due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
     
     dialog_manager.dialog_data["task_due_date"] = due_date_str
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.CREATE_TASK_CONFIRM)
+    from bot.modules.states import OperatorTaskCreateStates
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
     await callback.answer(f"✅ Дедлайн: {due_date_str}")
 
 
@@ -581,8 +541,8 @@ async def on_no_due_date(
 ):
     """Set no due date"""
     dialog_manager.dialog_data["task_due_date"] = "Не указано"
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.CREATE_TASK_CONFIRM)
+    from bot.modules.states import OperatorTaskCreateStates
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
     await callback.answer("✅ Дедлайн не установлен")
 
 
@@ -593,13 +553,18 @@ async def on_confirm_create_task(
 ):
     """Confirm and create task"""
     # Get data from dialog_data
+    print("DIALOG_DATA:", dialog_manager.dialog_data)
     title = dialog_manager.dialog_data.get("task_title", "")
     description = dialog_manager.dialog_data.get("task_description", "")
     start_date = dialog_manager.dialog_data.get("task_start_date", "")
     due_date = dialog_manager.dialog_data.get("task_due_date", "Не указано")
-    student_telegram_id = dialog_manager.dialog_data.get("selected_student_telegram_id")
-    
+    student_telegram_id = dialog_manager.start_data.get("student_id")
+
+    print("telegram: ", student_telegram_id)
+    print(dialog_manager.start_data)
+
     if not all([title, description, start_date, student_telegram_id]):
+        print([title, description, start_date, student_telegram_id])
         await callback.answer("❌ Ошибка: отсутствуют данные")
         return
     
@@ -627,8 +592,8 @@ async def on_confirm_create_task(
         dialog_manager.dialog_data.pop("task_start_date", None)
         dialog_manager.dialog_data.pop("task_due_date", None)
         # Return to student tasks list
-        from bot.modules.start.windows import OperatorStates
-        await dialog_manager.switch_to(OperatorStates.STUDENT_TASKS)
+        from bot.modules.states import OperatorStudentsStates
+        await dialog_manager.done()
     else:
         await callback.answer("❌ Ошибка при создании задачи. Попробуйте позже.")
 
@@ -646,8 +611,8 @@ async def on_cancel_create_task(
     dialog_manager.dialog_data.pop("task_due_date", None)
     
     await callback.answer("❌ Создание задачи отменено")
-    from bot.modules.start.windows import OperatorStates
-    await dialog_manager.switch_to(OperatorStates.STUDENT_TASKS)
+    from bot.modules.states import OperatorStudentsStates
+    await dialog_manager.done()
 
 
 def validate_date_format(date_str: str) -> bool:
@@ -740,10 +705,10 @@ async def on_submit_task_button(
     dialog_manager: DialogManager,
 ):
     """Handle 'Complete Task' button click - switch to result input state"""
-    from bot.modules.start.windows import StudentStates
+    from bot.modules.states import StudentStates
     
-    # Switch to result input window
-    await dialog_manager.switch_to(StudentStates.SUBMIT_TASK_RESULT)
+    
+    await dialog_manager.start(StudentStates.SUBMIT_TASK_RESULT, data=dialog_manager.start_data)
 
 
 async def on_task_result_input(
@@ -754,7 +719,7 @@ async def on_task_result_input(
 ) -> None:
     """Handle student's task result input"""
     from bot.modules.tasks.service import submit_task_result
-    from bot.modules.start.windows import StudentStates
+    from bot.modules.states import StudentStates
     
     task_id = dialog_manager.dialog_data.get("selected_task_id")
     
@@ -812,8 +777,8 @@ async def on_submitted_task_select(
         if 0 <= task_index < len(tasks):
             task_id = tasks[task_index]["id"]
             dialog_manager.dialog_data["selected_task_id"] = task_id
-            from bot.modules.start.windows import OperatorStates
-            await dialog_manager.switch_to(OperatorStates.REVIEW_TASK_DETAIL)
+            from bot.modules.states import OperatorReviewStates
+            await dialog_manager.switch_to(OperatorReviewStates.REVIEW_TASK_DETAIL)
         else:
             await callback.answer("❌ Задача не найдена")
     except (ValueError, IndexError, KeyError):
@@ -836,7 +801,7 @@ async def get_review_task_detail_data(dialog_manager: DialogManager, **kwargs) -
             "student_name": "—",
         }
     
-    task = await get_task_by_id(task_id)
+    task = await tasks_service.get_task_by_id(task_id)
     
     if not task:
         return {
@@ -869,7 +834,7 @@ async def get_review_task_detail_data(dialog_manager: DialogManager, **kwargs) -
     
     if student_id:
         # Get student name
-        student = await get_user(student_id)
+        student = await user_service.get_user(student_id)
         if student:
             student_name = f"{student.get('first_name', '')} {student.get('last_name', '')}"
     
@@ -898,8 +863,8 @@ async def on_approve_task(
     if success:
         await callback.answer("✅ Задача одобрена!")
         # TODO: Send notification to student
-        from bot.modules.start.windows import OperatorStates
-        await dialog_manager.switch_to(OperatorStates.SUBMITTED_TASKS)
+        from bot.modules.states import OperatorReviewStates
+        await dialog_manager.switch_to(OperatorReviewStates.SUBMITTED_TASKS)
     else:
         await callback.answer("❌ Ошибка при одобрении задачи")
 
@@ -910,10 +875,10 @@ async def on_reject_task_button(
     dialog_manager: DialogManager,
 ):
     """Handle 'Reject Task' button click - switch to comment input state"""
-    from bot.modules.start.windows import OperatorStates
+    from bot.modules.states import OperatorReviewStates
     
     # Switch to rejection comment input window
-    await dialog_manager.switch_to(OperatorStates.REJECT_TASK_COMMENT)
+    await dialog_manager.switch_to(OperatorReviewStates.REJECT_TASK_COMMENT)
 
 
 async def on_rejection_comment_input(
@@ -924,13 +889,13 @@ async def on_rejection_comment_input(
 ) -> None:
     """Handle operator's rejection comment input"""
     from bot.modules.tasks.service import reject_task
-    from bot.modules.start.windows import OperatorStates
+    from bot.modules.states import OperatorReviewStates
     
     task_id = dialog_manager.dialog_data.get("selected_task_id")
     
     if not task_id:
         await message.answer("❌ Ошибка: задача не найдена")
-        await dialog_manager.switch_to(OperatorStates.SUBMITTED_TASKS)
+        await dialog_manager.switch_to(OperatorReviewStates.SUBMITTED_TASKS)
         return
     
     # Reject task via API
@@ -944,7 +909,7 @@ async def on_rejection_comment_input(
         )
         # TODO: Send notification to student with rejection comment
         # Return to submitted tasks list
-        await dialog_manager.switch_to(OperatorStates.SUBMITTED_TASKS)
+        await dialog_manager.switch_to(OperatorReviewStates.SUBMITTED_TASKS)
     else:
         await message.answer("❌ Ошибка при отклонении задачи")
-        await dialog_manager.switch_to(OperatorStates.SUBMITTED_TASKS)
+        await dialog_manager.switch_to(OperatorReviewStates.SUBMITTED_TASKS)

@@ -28,6 +28,10 @@ async def read_group(group_id: UUID, db: DbSession):  # type: ignore
     result = await db.execute(select(Group).where(Group.id == group_id))
     return result.scalar()
 
+async def read_group_by_name(name: str, db: DbSession): # type: ignore
+    result = await db.execute(select(Group).where(Group.name == name))
+    return result.scalar()
+
 
 async def add_student_to_group(group: Group, student: Student, db: DbSession):  # type: ignore
     group.students.append(student)

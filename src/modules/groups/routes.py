@@ -37,6 +37,16 @@ async def get_all_groups(db: DbSession):  # type: ignore
     return groups
 
 
+@router.get("/{name}",
+            response_model=GroupReadResponse,
+            description="Retrieve a specific group by its unique name")
+async def get_group(name: str, db: DbSession):  # type: ignore
+    group = await repo.read_group_by_name(name, db)
+    if group is None:
+        raise HTTPException(status_code=404, detail="Group not found")
+    return group
+
+
 @router.get("/{group_id}",
             response_model=GroupReadResponse,
             description="Retrieve a specific group by its ID")

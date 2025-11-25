@@ -1,0 +1,82 @@
+import httpx
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+from src.config import settings
+
+from src.modules.tasks.schemes import *
+from src.modules.groups.schemes import *
+
+
+async def get_all_groups() -> List[Dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=10) as client:
+        url = f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/groups/"
+        
+        response = await client.get(url)
+        response.raise_for_status()
+        
+        groups = response.json()
+        return groups if groups else []
+    
+async def create_group(group_data: GroupCreateRequest) -> GroupCreateResponse:
+    async with httpx.AsyncClient(timeout=10) as client:
+        url = f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/groups/"
+        
+        response = await client.post(url, json=group_data.model_dump())
+        response.raise_for_status()
+        
+        created_group = response.json()
+        return GroupCreateResponse(**created_group)
+
+async def get_group_by_id(group_id: str) -> Optional[GroupReadResponse]:
+    async with httpx.AsyncClient(timeout=10) as client:
+        url = f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/groups/{group_id}"
+        
+        response = await client.get(url)
+        response.raise_for_status()
+        
+        group = response.json()
+        if group:
+            return GroupReadResponse(**group)
+        return None
+    
+async def get_group_by_name(name: str):
+    async with httpx.AsyncClient(timeout=10) as client:
+        url = f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/groups/{name}"
+        
+        response = await client.get(url)
+        response.raise_for_status()
+        
+        group = response.json()
+        if group:
+            return GroupReadResponse(**group)
+        return None
+
+async def add_student_to_group(group_id: str, student_id: str) -> bool:
+    async with httpx.AsyncClient(timeout=10) as client:
+        url = f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/groups/{group_id}/student/{student_id}"
+        
+        response = await client.post(url)
+        response.raise_for_status()
+        
+        return response.status_code == 200
+
+
+async def remove_student_from_group(group_id: str, student_id: str) -> bool:
+    async with httpx.AsyncClient(timeout=10) as client:
+        url = f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/groups/{group_id}/student/{student_id}"
+        
+        response = await client.delete(url)
+        response.raise_for_status()
+        
+        return response.status_code == 200
+
+async def get_group_tasks(group_id: str) -> List[Dict[str, Any]]:
+    async with httpx.AsyncClient(timeout=10) as client:
+        url = f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/groups/{group_id}/tasks"
+        
+        response = await client.get(url)
+        response.raise_for_status()
+        
+        tasks = response.json()
+        return tasks if tasks else []
+    

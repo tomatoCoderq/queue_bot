@@ -1,8 +1,15 @@
 from aiogram_dialog import Dialog, Window
 from aiogram_dialog.widgets.text import Format, Const
-from aiogram_dialog.widgets.kbd import Button, ScrollingGroup, Select, Back, Row
+from aiogram_dialog.widgets.kbd import Button, ScrollingGroup, Select, Back, Row, Cancel
 from aiogram_dialog.widgets.input import TextInput
-from bot.modules.start.windows import StudentStates, OperatorStates
+from bot.modules.states import (
+    StudentStates,
+    OperatorStudentsStates,
+    OperatorTaskCreateStates,
+    OperatorReviewStates,
+    OperatorTaskStates,
+)
+
 
 
 def create_task_dialogs():
@@ -12,14 +19,14 @@ def create_task_dialogs():
     """
     # Import handlers here to avoid circular imports
     from bot.modules.tasks.handlers import (
-        get_student_tasks_data,
-        get_task_detail_data,
+
         on_task_select,
         on_back_to_profile,
         get_operator_students_data,
         on_student_select,
-        get_student_tasks_for_operator_data,
+        # get_student_tasks_for_operator_data,
         on_page_next,
+        tasks_list_getter,
         on_page_prev,
         # Task creation handlers
         on_create_task_start,
@@ -39,7 +46,6 @@ def create_task_dialogs():
         on_due_date_8hours,
         on_due_date_1day,
         # Getter for confirmation window
-        get_create_task_confirm_data,
         # Sort handlers
         on_sort_by_start_date,
         on_sort_by_due_date,
@@ -55,10 +61,11 @@ def create_task_dialogs():
         on_approve_task,
         on_reject_task_button,
         on_rejection_comment_input,
+        task_detail_getter
     )
-    
+
     # ============ STUDENT WINDOWS ============
-    
+
     # Window 1: Student's tasks list
     student_tasks_window = Window(
         Format(
@@ -114,10 +121,10 @@ def create_task_dialogs():
             id="back_to_profile",
             on_click=on_back_to_profile,
         ),
-        getter=get_student_tasks_data,
+        getter=tasks_list_getter,
         state=StudentStates.MY_TASKS,
     )
-    
+
     # Window 2: Task detail for student
     student_task_detail_window = Window(
         Format(
@@ -141,12 +148,13 @@ def create_task_dialogs():
             Const("✅ Завершить задание"),
             id="submit_task",
             on_click=on_submit_task_button,
-            when="can_submit",
+            # when="can_submit",
         ),
         Back(Const("🔙 К списку задач")),
-        getter=get_task_detail_data,
+        getter=task_detail_getter,
         state=StudentStates.TASK_DETAIL,
     )
+
     # Window 3: Submit task result
     student_submit_result_window = Window(
         Const(
@@ -161,9 +169,9 @@ def create_task_dialogs():
         Back(Const("🔙 Отмена")),
         state=StudentStates.SUBMIT_TASK_RESULT,
     )
-    
+
     # ============ OPERATOR WINDOWS ============
-    
+
     # Window 1: List of students with pagination
     operator_students_window = Window(
         Format(
@@ -184,103 +192,16 @@ def create_task_dialogs():
             width=1,
             height=5,  # Max 5 students per page
         ),
-        Row(
-            Button(
-                Const("◀️ Назад"),
-                id="page_prev",
-                on_click=on_page_prev,
-                when="has_prev",
-            ),
-            Button(
-                Const("Вперёд ▶️"),
-                id="page_next",
-                on_click=on_page_next,
-                when="has_next",
-            ),
-        ),
         Button(
             Const("🔙 В профиль"),
             id="back_to_profile",
             on_click=on_back_to_profile,
         ),
         getter=get_operator_students_data,
-        state=OperatorStates.STUDENTS_LIST,
+        state=OperatorStudentsStates.STUDENTS_LIST,
     )
-    
-    # Window 2: Student's tasks (viewed by operator)
-    operator_student_tasks_window = Window(
-        Format(
-            "📚 Задачи студента: {student_name}\n\n"
-            "Всего задач: {tasks_count}\n"
-            "Сортировка: {sort_display}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-        ),
-        ScrollingGroup(
-            Select(
-                Format("{item[title]} ({item[status_emoji]})"),
-                id="task_select_operator",
-                item_id_getter=lambda x: x["id"],
-                items="tasks",
-                on_click=on_task_select,
-            ),
-            id="tasks_scroll_operator",
-            width=1,
-            height=5,
-        ),
-        Row(
-            Button(
-                Const("📅 Начало"),
-                id="sort_start_op",
-                on_click=on_sort_by_start_date,
-            ),
-            Button(
-                Const("⏰ Дедлайн"),
-                id="sort_due_op",
-                on_click=on_sort_by_due_date,
-            ),
-        ),
-        Row(
-            Button(
-                Const("🎯 Статус"),
-                id="sort_status_op",
-                on_click=on_sort_by_status,
-            ),
-            Button(
-                Const("🔄 Сброс"),
-                id="sort_reset_op",
-                on_click=on_sort_reset,
-            ),
-        ),
-        Button(
-            Const("➕ Создать задачу"),
-            id="create_task_btn",
-            on_click=on_create_task_start,
-        ),
-        Back(Const("🔙 К списку студентов")),
-        getter=get_student_tasks_for_operator_data,
-        state=OperatorStates.STUDENT_TASKS,
-    )
-    
-    # Window 3: Task detail (viewed by operator)
-    operator_task_detail_window = Window(
-        Format(
-            "📋 Детали задачи\n\n"
-            "👤 Студент: {student_name}\n"
-            "📌 Название: {task[title]}\n"
-            "📝 Описание: {task[description]}\n"
-            "📅 Дата начала: {task[start_date]}\n"
-            "⏰ Дедлайн: {task[due_date]}\n"
-            "🎯 Статус: {task[status_display]}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-        ),
-        Back(Const("🔙 К задачам студента")),
-        getter=get_task_detail_data,
-        state=OperatorStates.TASK_DETAIL,
-    )
-    
     # ============ TASK CREATION WINDOWS (FOR OPERATOR) ============
-    
-    # Window 1: Enter task title
+
     create_task_title_window = Window(
         Const("➕ Создание задачи\n\n"
               "Шаг 1 из 4: Введите название задачи"),
@@ -289,11 +210,10 @@ def create_task_dialogs():
             type_factory=str,
             on_success=on_task_title_input,
         ),
-        Back(Const("❌ Отменить")),
-        state=OperatorStates.CREATE_TASK_TITLE,
+        Cancel(Const("❌ Отменить")),
+        state=OperatorTaskCreateStates.CREATE_TASK_TITLE,
     )
-    
-    # Window 2: Enter task description
+
     create_task_description_window = Window(
         Format(
             "➕ Создание задачи\n\n"
@@ -306,10 +226,9 @@ def create_task_dialogs():
             on_success=on_task_description_input,
         ),
         Back(Const("🔙 Назад")),
-        state=OperatorStates.CREATE_TASK_DESCRIPTION,
+        state=OperatorTaskCreateStates.CREATE_TASK_DESCRIPTION,
     )
-    
-    # Window 3: Enter start date
+
     create_task_start_date_window = Window(
         Format(
             "➕ Создание задачи\n\n"
@@ -326,10 +245,9 @@ def create_task_dialogs():
             on_success=on_task_start_date_input,
         ),
         Back(Const("🔙 Назад")),
-        state=OperatorStates.CREATE_TASK_START_DATE,
+        state=OperatorTaskCreateStates.CREATE_TASK_START_DATE,
     )
-    
-    # Window 4: Enter due date
+
     create_task_due_date_window = Window(
         Format(
             "➕ Создание задачи\n\n"
@@ -339,7 +257,6 @@ def create_task_dialogs():
             "📅 Дата начала: {dialog_data[task_start_date]}\n\n"
             "Выберите быстрый вариант или введите вручную:"
         ),
-        # Quick deadline buttons (2 rows)
         Row(
             Button(
                 Const("⏱ 30 мин"),
@@ -381,27 +298,23 @@ def create_task_dialogs():
                 on_click=on_due_date_1day,
             ),
         ),
-        # Manual input
         TextInput(
             id="task_due_date_input",
             type_factory=str,
             on_success=on_task_due_date_input,
         ),
-        # No deadline button
         Button(
             Const("🚫 Без дедлайна"),
             id="no_due_date",
             on_click=on_no_due_date,
         ),
         Back(Const("🔙 Назад")),
-        state=OperatorStates.CREATE_TASK_DUE_DATE,
+        state=OperatorTaskCreateStates.CREATE_TASK_DUE_DATE,
     )
-    
-    # Window 5: Confirm task creation
+
     create_task_confirm_window = Window(
         Format(
             "✅ Подтвердите создание задачи\n\n"
-            "👤 Студент: {student_name}\n\n"
             "📌 Название: {dialog_data[task_title]}\n"
             "📝 Описание: {dialog_data[task_description]}\n"
             "📅 Дата начала: {dialog_data[task_start_date]}\n"
@@ -419,14 +332,13 @@ def create_task_dialogs():
                 id="cancel_create_task",
                 on_click=on_cancel_create_task,
             ),
+            
         ),
-        getter=get_create_task_confirm_data,
-        state=OperatorStates.CREATE_TASK_CONFIRM,
+        state=OperatorTaskCreateStates.CREATE_TASK_CONFIRM,
     )
-    
+
     # ============ OPERATOR REVIEW WINDOWS ============
-    
-    # Window 6: Submitted tasks list for review
+
     operator_submitted_tasks_window = Window(
         Format(
             "📝 Задачи на проверке\n\n"
@@ -451,10 +363,9 @@ def create_task_dialogs():
             on_click=on_back_to_profile,
         ),
         getter=get_submitted_tasks_data,
-        state=OperatorStates.SUBMITTED_TASKS,
+        state=OperatorReviewStates.SUBMITTED_TASKS,
     )
-    
-    # Window 7: Review task detail
+
     operator_review_task_window = Window(
         Format(
             "📋 Проверка задачи\n\n"
@@ -480,10 +391,9 @@ def create_task_dialogs():
         ),
         Back(Const("🔙 К списку")),
         getter=get_review_task_detail_data,
-        state=OperatorStates.REVIEW_TASK_DETAIL,
+        state=OperatorReviewStates.REVIEW_TASK_DETAIL,
     )
-    
-    # Window 8: Rejection comment input
+
     operator_rejection_comment_window = Window(
         Const(
             "💬 Комментарий к отклонению\n\n"
@@ -495,30 +405,114 @@ def create_task_dialogs():
             on_success=on_rejection_comment_input,
         ),
         Back(Const("🔙 Отмена")),
-        state=OperatorStates.REJECT_TASK_COMMENT,
+        state=OperatorReviewStates.REJECT_TASK_COMMENT,
     )
-    
+
+    tasks_list_window = Window(
+        Format(
+            "📌 {header}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+        ),
+        ScrollingGroup(
+            Select(
+                Format("{item[title]}"),
+                id="unified_task_select",
+                item_id_getter=lambda x: x["id"],
+                items="tasks",
+                on_click=on_task_select,
+            ),
+            id="unified_tasks_scroll",
+            width=1,
+            height=7,
+        ),
+        Row(
+            Button(
+                Const("📅 Начало"),
+                id="sort_start_op",
+                on_click=on_sort_by_start_date,
+            ),
+            Button(
+                Const("⏰ Дедлайн"),
+                id="sort_due_op",
+                on_click=on_sort_by_due_date,
+            ),
+        ),
+        Row(
+            Button(
+                Const("🎯 Статус"),
+                id="sort_status_op",
+                on_click=on_sort_by_status,
+            ),
+            Button(
+                Const("🔄 Сброс"),
+                id="sort_reset_op",
+                on_click=on_sort_reset,
+            ),
+        ),
+        Button(
+            Const("➕ Создать задачу"),
+            id="create_task_btn",
+            on_click=on_create_task_start,
+        ),
+        Cancel(Const("🔙 К списку студентов")),
+        state=OperatorTaskStates.LIST_TASKS,
+        getter=tasks_list_getter,
+    )
+    tasks_detail_window = Window(
+        Format(
+            "📋 Детали задачи\n\n"
+            "📌 Название: {task[title]}\n"
+            "📝 Описание: {task[description]}\n"
+            "📅 Дата начала: {task[start_date]}\n"
+            "⏰ Дедлайн: {task[due_date]}\n"
+            "🎯 Статус: {task[status_display]}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+        ),
+        Button(
+            Const("✅ Завершить задание"),
+            id="submit_task",
+            on_click=on_submit_task_button,
+            when="can_submit",
+        ),
+        Back(Const("🔙 К списку задач")),
+        getter=task_detail_getter,
+        state=OperatorTaskStates.DETAIL,
+    )
+
+    tasks_dialog = Dialog(
+        tasks_list_window,
+        tasks_detail_window,
+    )
+
     # Create dialogs
     student_tasks_dialog = Dialog(
         student_tasks_window,
         student_task_detail_window,
         student_submit_result_window,
     )
-    
-    operator_tasks_dialog = Dialog(
+
+    operator_students_dialog = Dialog(
         operator_students_window,
-        operator_student_tasks_window,
-        operator_task_detail_window,
-        # Task creation windows
+    )
+
+    operator_task_create_dialog = Dialog(
         create_task_title_window,
         create_task_description_window,
         create_task_start_date_window,
         create_task_due_date_window,
         create_task_confirm_window,
-        # Task review windows
+    )
+
+    operator_review_dialog = Dialog(
         operator_submitted_tasks_window,
         operator_review_task_window,
         operator_rejection_comment_window,
     )
-    
-    return student_tasks_dialog, operator_tasks_dialog
+
+    return (
+        student_tasks_dialog,
+        operator_students_dialog,
+        operator_task_create_dialog,
+        operator_review_dialog,
+        tasks_dialog,
+    )

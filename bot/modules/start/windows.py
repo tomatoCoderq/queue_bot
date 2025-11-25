@@ -1,45 +1,9 @@
-from aiogram.fsm.state import State, StatesGroup
-from aiogram_dialog import Dialog, Window
+from aiogram_dialog import Dialog, LaunchMode, Window
 from aiogram_dialog.widgets.text import Format, Const
 from aiogram_dialog.widgets.kbd import Button, Row, Group
 from aiogram_dialog.widgets.input import TextInput
 
-
-class RegistrationStates(StatesGroup):
-    ROLE_CHOICE = State()
-    FIRST_NAME = State()
-    LAST_NAME = State()
-    CONFIRM = State()
-    SUCCESS = State()
-
-
-class ProfileStates(StatesGroup):
-    PROFILE = State()
-
-
-# States for Students
-class StudentStates(StatesGroup):
-    MY_TASKS = State()
-    TASK_DETAIL = State()
-    SUBMIT_TASK_RESULT = State()
-
-
-# States for Operators
-class OperatorStates(StatesGroup):
-    STUDENTS_LIST = State()
-    STUDENT_TASKS = State()
-    TASK_DETAIL = State()
-    # States for creating tasks
-    CREATE_TASK_TITLE = State()
-    CREATE_TASK_DESCRIPTION = State()
-    CREATE_TASK_START_DATE = State()
-    CREATE_TASK_DUE_DATE = State()
-    CREATE_TASK_CONFIRM = State()
-    # States for reviewing submitted tasks
-    SUBMITTED_TASKS = State()
-    REVIEW_TASK_DETAIL = State()
-    REJECT_TASK_COMMENT = State()
-
+from bot.modules.states import RegistrationStates, ProfileStates
 
 def create_dialogs():
     """
@@ -53,12 +17,11 @@ def create_dialogs():
         on_last_name_input,
         on_confirm_registration,
         on_cancel_registration,
-        on_success_complete,
         get_profile_data,
         on_menu_tasks,
         on_menu_settings,
         on_menu_review_tasks,
-        on_menu_logout,
+        on_groups_tasks,
     )
 
     # Window 2: Role Choice
@@ -138,7 +101,7 @@ def create_dialogs():
         Const("Поздравляем с регистрацией!\n\n"
               "Вы успешно зарегистрированы в системе.\n"
               "Нажмите /start чтобы войти в профиль."),
-        getter=on_success_complete,
+        # getter=on_success_complete,
         state=RegistrationStates.SUCCESS,
     )
 
@@ -156,6 +119,12 @@ def create_dialogs():
                 Format("{tasks_button_text}"),
                 id="menu_tasks",
                 on_click=on_menu_tasks,
+            ),
+            Button(
+                Format("Группы и задачи"),
+                id="menu_groups",
+                on_click=on_groups_tasks,
+                when="is_operator",
             ),
             Button(
                 Const("📝 Задачи на проверке"),
@@ -184,6 +153,7 @@ def create_dialogs():
 
     profile_dialog = Dialog(
         profile_window,
+        launch_mode=LaunchMode.ROOT
     )
     
     return registration_dialog, profile_dialog

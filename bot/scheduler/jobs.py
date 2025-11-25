@@ -13,9 +13,6 @@ async def check_upcoming_deadlines():
     try:
         logger.info("🔍 Checking tasks with upcoming deadlines...")
         
-        # TODO: Implement when needed
-        # This is a placeholder for deadline reminder functionality
-        
         logger.info("✅ Deadline check completed")
         
     except Exception as e:
@@ -37,7 +34,7 @@ async def check_overdue_tasks():
             mark_overdue_notification_sent
         )
         from bot.modules.tasks.notifications import send_overdue_notification
-        from bot.modules.start.service import get_user_by_id
+        from bot.modules.users.service import get_user_by_id
         
         # Получаем список просроченных задач
         tasks = await get_overdue_tasks()

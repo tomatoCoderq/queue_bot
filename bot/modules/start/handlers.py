@@ -5,23 +5,24 @@ from aiogram_dialog.widgets.kbd import Button
 from aiogram_dialog.widgets.input import ManagedTextInput
 from aiogram.types import CallbackQuery, Message
 
-from bot.modules.start.windows import RegistrationStates, ProfileStates
-from bot.modules.start.service import get_user, create_user
+from bot.modules.states import RegistrationStates, ProfileStates
+
+from bot.modules.users import service as user_service
 
 router = Router()
 
 
 @router.message(CommandStart())
 async def cmd_start(message: types.Message, dialog_manager: DialogManager):
-    """Handle /start command - check if user is registered"""
+    '''Проверяем что юзер зарегистрирован и запускаем нужный диалог'''
     if not message.from_user:
         return
-        
+
     telegram_id = message.from_user.id
-    user = await get_user(telegram_id)
-    
+    user = await user_service.get_user(telegram_id)
+
     if user:
-        # User is registered, go to profile
+        # User is registered
         await dialog_manager.start(
             ProfileStates.PROFILE,
             mode=StartMode.RESET_STACK,
@@ -35,22 +36,18 @@ async def cmd_start(message: types.Message, dialog_manager: DialogManager):
         )
 
 
-async def on_role_select(
-    callback: CallbackQuery,
-    button: Button,
-    dialog_manager: DialogManager,
-):
+async def on_role_select(c, b, dialog_manager: DialogManager,):
     """Handle role selection"""
     role_map = {
         "role_student": "student",
         "role_parent": "parent",
         "role_operator": "operator",
     }
-    
-    widget_id = button.widget_id or "role_student"
+
+    widget_id = b.widget_id or "role_student"
     role = role_map.get(widget_id, "student")
     dialog_manager.dialog_data["role"] = role
-    
+
     await dialog_manager.switch_to(RegistrationStates.FIRST_NAME)
 
 
@@ -60,7 +57,6 @@ async def on_first_name_input(
     dialog_manager: DialogManager,
     data: str,
 ):
-    """Handle first name input"""
     dialog_manager.dialog_data["first_name"] = data
     await dialog_manager.switch_to(RegistrationStates.LAST_NAME)
 
@@ -71,16 +67,12 @@ async def on_last_name_input(
     dialog_manager: DialogManager,
     data: str,
 ):
-    """Handle last name input"""
     dialog_manager.dialog_data["last_name"] = data
-    
+
     # Save username from telegram
-    if message.from_user:
-        username = message.from_user.username or "no_username"
-        dialog_manager.dialog_data["username"] = username
-    else:
-        dialog_manager.dialog_data["username"] = "no_username"
-    
+    username = message.from_user.username or "no_username"
+    dialog_manager.dialog_data["username"] = username
+
     await dialog_manager.switch_to(RegistrationStates.CONFIRM)
 
 
@@ -89,22 +81,22 @@ async def on_confirm_registration(
     button: Button,
     dialog_manager: DialogManager,
 ):
-    """Handle registration confirmation"""
+    """Confirm registration"""
     telegram_id = callback.from_user.id
     first_name = dialog_manager.dialog_data["first_name"]
     last_name = dialog_manager.dialog_data["last_name"]
     username = dialog_manager.dialog_data["username"]
     role = dialog_manager.dialog_data["role"]
-    
+
     # Create user via API
-    await create_user(
+    await  user_service.create_user(
         telegram_id=telegram_id,
         first_name=first_name,
         last_name=last_name,
         username=username,
         role=role,
     )
-    
+
     await dialog_manager.switch_to(RegistrationStates.SUCCESS)
 
 
@@ -114,54 +106,40 @@ async def on_cancel_registration(
     dialog_manager: DialogManager,
 ):
     """Handle registration cancellation"""
-    # Clear data and go back to role choice
-    dialog_manager.dialog_data.clear()
+    dialog_manager.dialog_data.clear()  # Clear all gathered data
     await dialog_manager.switch_to(RegistrationStates.ROLE_CHOICE)
 
 
-async def on_success_complete(**kwargs):
-    """Getter for SUCCESS state - transition happens via cmd_start"""
-    return {}
-
-
 async def get_profile_data(dialog_manager: DialogManager, **kwargs):
-    """Getter for profile window - load user data"""
+    """Getter for profile window"""
     telegram_id = None
-    
-    if isinstance(dialog_manager.start_data, dict):
-        telegram_id = dialog_manager.start_data.get("telegram_id")
-    
+
+    telegram_id = dialog_manager.start_data.get("telegram_id")
+
     if not telegram_id and dialog_manager.event.from_user:
         telegram_id = dialog_manager.event.from_user.id
-    
+
     if not telegram_id:
-        return {
-            "first_name": "Unknown",
-            "last_name": "User",
-            "role": "unknown",
-            "role_display": "Неизвестная",
-            "username": "unknown",
-            "tasks_button_text": "📚 Задачи",
-        }
-    
-    user = await get_user(telegram_id)
-    
+        raise ValueError("Telegram ID not found for profile data retrieval")
+
+    user = await user_service.get_user(telegram_id)
+
     if user:
         role = user["role"].lower()
-        
+
         # Map role to display text and button text
         role_display_map = {
             "student": "Студент",
             "operator": "Оператор",
             "parent": "Родитель",
         }
-        
+
         tasks_button_map = {
             "student": "📚 Мои задачи",
             "operator": "👥 Студенты и задачи",
             "parent": "🚧 В разработке",
         }
-        
+
         return {
             "first_name": user["first_name"],
             "last_name": user["last_name"],
@@ -171,16 +149,8 @@ async def get_profile_data(dialog_manager: DialogManager, **kwargs):
             "tasks_button_text": tasks_button_map.get(role, "📚 Задачи"),
             "is_operator": role == "operator",
         }
-    
-    return {
-        "first_name": "Unknown",
-        "last_name": "User",
-        "role": "unknown",
-        "role_display": "Неизвестная",
-        "username": "unknown",
-        "tasks_button_text": "📚 Задачи",
-        "is_operator": False,
-    }
+
+    raise ValueError("User not found")
 
 
 async def on_menu_tasks(
@@ -188,38 +158,77 @@ async def on_menu_tasks(
     button: Button,
     dialog_manager: DialogManager,
 ):
-    """Handle 'My Tasks' button click - different behavior based on role"""
+    """First button behavior based on role"""
     if not callback.from_user:
         return
-    
+
     telegram_id = callback.from_user.id
-    user = await get_user(telegram_id)
-    
+    user = await user_service.get_user(telegram_id)
+
     if not user:
         await callback.answer("Ошибка: пользователь не найден")
         return
-    
+
     role = user.get("role", "").lower()
-    
+
+    if role == "":
+        await callback.answer("Ошибка: роль пользователя не определена")
+        return
+
     if role == "student":
-        # Import here to avoid circular import
-        from bot.modules.start.windows import StudentStates
+        from bot.modules.states import StudentStates
+
         await dialog_manager.start(
             StudentStates.MY_TASKS,
             mode=StartMode.NORMAL,
+            data={
+                "context":"student_self",
+                "telegram_id": telegram_id
+            }
         )
     elif role == "operator":
-        # Import here to avoid circular import
-        from bot.modules.start.windows import OperatorStates
+        from bot.modules.states import OperatorStudentsStates
+
         await dialog_manager.start(
-            OperatorStates.STUDENTS_LIST,
+            OperatorStudentsStates.STUDENTS_LIST,
             mode=StartMode.NORMAL,
         )
+
     elif role == "parent":
         await callback.answer("🚧 Функционал для родителей в разработке")
-    else:
-        await callback.answer("Неизвестная роль пользователя")
 
+
+async def on_groups_tasks(callback: CallbackQuery,
+                          button: Button,
+                          dialog_manager: DialogManager,):
+    """Group management depedens on role"""
+    from bot.modules.states import OperatorGroupsStates
+
+    if not callback.from_user:
+        return
+
+    telegram_id = callback.from_user.id
+    user = await user_service.get_user(telegram_id)
+
+    if not user:
+        await callback.answer("Ошибка: пользователь не найден")
+        return
+
+    role = user.get("role", "").lower()
+
+    if role == "student":
+        await callback.answer("🚧 Функционал для студентов в разработке")
+        return
+
+    if role == "parent":
+        await callback.answer("🚧 Функционал для родителей в разработке")
+        return
+
+    if role == "operator":
+        await dialog_manager.start(
+            OperatorGroupsStates.GROUP_LIST,
+            mode=StartMode.NORMAL,
+        )
 
 
 async def on_menu_settings(
@@ -227,7 +236,7 @@ async def on_menu_settings(
     button: Button,
     dialog_manager: DialogManager,
 ):
-    """Handle 'Settings' button click"""
+    """Settings button. In progress"""
     await callback.answer("Настройки в разработке...")
 
 
@@ -236,22 +245,11 @@ async def on_menu_review_tasks(
     button: Button,
     dialog_manager: DialogManager,
 ):
-    """Handle 'Review Tasks' button click - for operators"""
-    from bot.modules.start.windows import OperatorStates
+    """Review tasks button for operators"""
+    from bot.modules.states import OperatorReviewStates
     from aiogram_dialog import StartMode
-    
+
     await dialog_manager.start(
-        OperatorStates.SUBMITTED_TASKS,
+        OperatorReviewStates.SUBMITTED_TASKS,
         mode=StartMode.NORMAL,
     )
-
-
-async def on_menu_logout(
-    callback: CallbackQuery,
-    button: Button,
-    dialog_manager: DialogManager,
-):
-    """Handle 'Logout' button click"""
-    await callback.answer("До встречи!")
-    await dialog_manager.done()
-
