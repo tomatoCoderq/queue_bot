@@ -54,6 +54,7 @@ class TaskReadResponse(SQLModel):
     title: str = Field(description="Title of the task")
     description: Optional[str] = Field(description="Detailed description of the task")
     status: Optional[str] = Field(description="Current status of the task")
+    result: Optional[str] = Field(description="Result or outcome of the task")
     created_at: Optional[datetime] = Field(description="Timestamp when the task was created")
     start_date: Optional[datetime] = Field(description="Start date of the task")
     due_date: Optional[datetime] = Field(description="Due date for the task")

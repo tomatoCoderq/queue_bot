@@ -21,8 +21,6 @@ def create_task_dialogs():
 
         on_task_select,
         on_back_to_profile,
-        get_operator_students_data,
-        on_student_select,
         # get_student_tasks_for_operator_data,
         tasks_list_getter,
         on_create_task_start,
@@ -33,6 +31,7 @@ def create_task_dialogs():
         on_no_due_date,
         on_confirm_create_task,
         on_cancel_create_task,
+        on_toggle_completed_tasks,
         task_detail_getter,
         # Quick due date handlers
         on_due_date_30min,
@@ -63,9 +62,10 @@ def create_task_dialogs():
     # Window 3: Submit task result
     student_submit_result_window = Window(
         Const(
-            "📝 Отправка результата\n\n"
+            "📝 **Отправка результата**\n\n"
             "Введите результат выполнения задания.\n"
-            "Он будет отправлен преподавателю на проверку."
+            "Результат будет отправлен преподавателю на проверку.\n\n"
+            "💡 *Опишите подробно что было сделано*"
         ),
         TextInput(
             id="result_input",
@@ -74,37 +74,8 @@ def create_task_dialogs():
         Back(Const("🔙 Отмена")),
         state=OperatorTaskStates.SUBMIT_RESULT,
     )
-
-    # ============ OPERATOR WINDOWS ============
-
-    # Window 1: List of students with pagination
-    operator_students_window = Window(
-        Format(
-            "👥 Список студентов\n\n"
-            "Всего студентов: {total_students}\n"
-            "Страница {current_page} из {total_pages}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-        ),
-        ScrollingGroup(
-            Select(
-                Format("{item[first_name]} {item[last_name]}"),
-                id="student_select",
-                item_id_getter=lambda x: str(x["telegram_id"]),
-                items="students_page",
-                on_click=on_student_select,
-            ),
-            id="students_scroll",
-            width=1,
-            height=5,  # Max 5 students per page
-        ),
-        Button(
-            Const("🔙 В профиль"),
-            id="back_to_profile",
-            on_click=on_back_to_profile,
-        ),
-        getter=get_operator_students_data,
-        state=OperatorStudentsStates.STUDENTS_LIST,
-    )
+    
+    
     # ============ TASK CREATION WINDOWS (FOR OPERATOR) ============
 
     create_task_title_window = Window(
@@ -246,13 +217,13 @@ def create_task_dialogs():
 
     operator_submitted_tasks_window = Window(
         Format(
-            "📝 Задачи на проверке\n\n"
-            "Всего задач: {tasks_count}\n"
+            "📝 **Задачи на проверке**\n\n"
+            "📊 Всего задач: {tasks_count}\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
         ),
         ScrollingGroup(
             Select(
-                Format("{item[title]} ({item[status_emoji]})"),
+                Format("📝 {item[title]} {item[status_emoji]}"),
                 id="submitted_task_select",
                 item_id_getter=lambda x: x.get("index", "0"),
                 items="tasks",
@@ -273,13 +244,13 @@ def create_task_dialogs():
 
     operator_review_task_window = Window(
         Format(
-            "📋 Проверка задачи\n\n"
-            "👤 Студент: {student_name}\n\n"
-            "📌 Название: {task[title]}\n"
-            "📝 Описание: {task[description]}\n"
-            "📅 Дата начала: {task[start_date]}\n"
-            "⏰ Дедлайн: {task[due_date]}\n\n"
-            "✏️ Результат студента:\n{task[result]}\n"
+            "📋 **Проверка задачи**\n\n"
+            "👤 **Студент:** {student_name}\n\n"
+            "📌 **Название:** {task[title]}\n"
+            "📝 **Описание:** {task[description]}\n"
+            "📅 **Дата начала:** {task[start_date]}\n"
+            "⏰ **Дедлайн:** {task[due_date]}\n\n"
+            "✏️ **Результат студента:**\n`{task[result]}`\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
         ),
         Row(
@@ -320,7 +291,7 @@ def create_task_dialogs():
         ),
         ScrollingGroup(
             Select(
-                Format("{item[title]}"),
+                Format("📝 {item[title]} {item[status_emoji]}"),
                 id="unified_task_select",
                 item_id_getter=lambda x: x["id"],
                 items="tasks",
@@ -355,27 +326,44 @@ def create_task_dialogs():
             ),
         ),
         Button(
+            Const("Показать завершённые"),
+            id="toggle_completed_op",
+            on_click=on_toggle_completed_tasks,
+        ),
+        Button(
             Const("➕ Создать задачу"),
             id="create_task_btn",
             on_click=on_create_task_start,
             when="can_create_task",
         ),
-        Cancel(Const("🔙 К списку студентов")),
+        Cancel(Const("🔙 Назад")),
+        # Button(
+        #     Const("🔙 Назад"), 
+        #     on_click=lambda c, b, m: m.start(OperatorStudentsStates.STUDENTS_LIST
+        # )
         state=OperatorTaskStates.LIST_TASKS,
         getter=tasks_list_getter,
     )
     tasks_detail_window = Window(
         Format(
-            "📋 Детали задачи\n\n"
-            "📌 Название: {task[title]}\n"
-            "📝 Описание: {task[description]}\n"
-            "📅 Дата начала: {task[start_date]}\n"
-            "⏰ Дедлайн: {task[due_date]}\n"
-            "🎯 Статус: {task[status_display]}\n"
+            "📋 **Детали задачи**\n\n"
+            "📌 **Название:** {task[title]}\n"
+            "📝 **Описание:** {task[description]}\n"
+            "📅 **Дата начала:** {task[start_date]}\n"
+            "⏰ **Дедлайн:** {task[due_date]}\n"
+            "🎯 **Статус:** {task[status_display]}\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
         ),
+        Format(
+            "❌ **Комментарий преподавателя:**\n{task[rejection_comment]}\n\n",
+            when="task[has_rejection]"
+        ),
+        Format(
+            "⚠️ {overdue_warning}\n\n",
+            when="is_overdue"
+        ),
         Button(
-            Const("Удалить"),
+            Const("🗑 Удалить задачу"),
             id="delete_task",
             on_click=on_delete_task,
             when="operator",
@@ -386,7 +374,11 @@ def create_task_dialogs():
             on_click=on_submit_task_button,
             when="can_submit",
         ),
-        Back(Const("🔙 К списку задач")),
+        Button(
+            Format("🔙 {back_text}"),
+            id="back_button",
+            on_click=lambda c, b, m: m.back(),
+        ),
         getter=task_detail_getter,
         state=OperatorTaskStates.DETAIL,
     )
@@ -395,10 +387,6 @@ def create_task_dialogs():
         tasks_list_window,
         tasks_detail_window,
         student_submit_result_window,
-    )
-
-    operator_students_dialog = Dialog(
-        operator_students_window,
     )
 
     operator_task_create_dialog = Dialog(
@@ -416,7 +404,6 @@ def create_task_dialogs():
     )
 
     return (
-        operator_students_dialog,
         operator_task_create_dialog,
         operator_review_dialog,
         tasks_dialog,

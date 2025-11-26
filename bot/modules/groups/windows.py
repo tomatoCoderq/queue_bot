@@ -4,9 +4,17 @@ from aiogram_dialog.widgets.kbd import Button, Row
 from aiogram_dialog.widgets.input import TextInput
 from aiogram_dialog.widgets.kbd import ScrollingGroup, Select, Back, Cancel
 
-from bot.modules.groups.handlers import on_add_specific_user, on_add_user_group, on_confirm_group_creation, on_group_title_input
+from bot.modules.groups.handlers import (
+    on_add_specific_user, 
+    on_add_user_group, 
+    on_remove_specific_user,
+    on_remove_user_group,
+    on_delete_group,
+    on_confirm_group_creation, 
+    on_group_title_input
+)
 from bot.modules.states import ClientGroupsStates, OperatorGroupsStates, OperatorGroupCreateStates
-from bot.modules.tasks.handlers import get_operator_students_data
+from bot.modules.users.handlers import get_operator_students_data
 
 
 def create_group_dialogs():
@@ -19,21 +27,22 @@ def create_group_dialogs():
         on_group_select,
         on_group_tasks_clicked,
         getter_group_clients,
+        getter_group_clients_for_removal,
         getter_client_group_info,
+        on_group_tasks_clicked_client,
     )
-
 
     # Диалог для управления группами (OperatorGroupsStates)
     operator_group_window = Window(
         Format(
-            "Список групп\n\n"
-            "Всего групп: {total_groups}\n"
-            "Страницы {current_page} из {total_pages}\n"
+            "👥 **Список групп**\n\n"
+            "📊 Всего групп: {total_groups}\n"
+            "📄 Страницы {current_page} из {total_pages}\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
         ),
         ScrollingGroup(
             Select(
-                Format("{item[name]}"),
+                Format("👥 {item[name]}"),
                 id="group_select",
                 item_id_getter=lambda x: str(x["name"]),
                 items="groups_page",
@@ -44,7 +53,7 @@ def create_group_dialogs():
             height=5,
         ),
         Button(
-            Const("+"),
+            Const("➕ Создать группу"),
             id="create_group",
             on_click=on_group_create,
         ),
@@ -59,33 +68,46 @@ def create_group_dialogs():
 
     operator_group_actions = Window(
         Format(
-            "Действия с группой\n\n"
-            "{students_text}\n\n"
+            "🏠 **Управление группой**\n\n"
+            "👥 **Участники:**\n{students_text}\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
         ),
 
         Button(
-            Const("Просмотреть задачи группы"),
+            Const("📝 Задачи группы"),
             id="group_tasks",
             on_click=on_group_tasks_clicked,
         ),
-        Button(
-            Const("Добавить участника"),
-            id="add_member",
-            on_click=on_add_user_group,
+        Row(
+            Button(
+                Const("➕ Добавить"),
+                id="add_member",
+                on_click=on_add_user_group,
+            ),
+            Button(
+                Const("➖ Удалить"),
+                id="remove_member",
+                on_click=on_remove_user_group,
+            )
         ),
-        Cancel(Const("Назад")),
+        Button(Const("🗑️ Удалить группу"),
+               id="delete_group",
+               on_click=on_delete_group,
+               ),
+        Back(Const("🔙 Назад")),
         getter=getter_group_clients,
         state=OperatorGroupsStates.GROUP_ACTIONS,
     )
 
     operator_add_user_window = Window(
         Format(
-            "Добавить участника в группу\n\n"
-            "Выберите нужного"
+            "➕ **Добавить участника**\n\n"
+            "🎯 Выберите студента для добавления в группу:\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
         ),
         ScrollingGroup(
             Select(
-                Format("{item[first_name]} {item[last_name]}"),
+                Format("🎓 {item[first_name]} {item[last_name]}"),
                 id="student_select",
                 item_id_getter=lambda x: str(x["telegram_id"]),
                 items="students_page",
@@ -95,13 +117,42 @@ def create_group_dialogs():
             width=1,
             height=5,  # Max 5 students per page
         ),
-        Button(
-            Const("🔙 В профиль"),
-            id="back_to_profile",
-            on_click=on_back_to_profile,
-        ),
+        Back(Const("Назад")),
+        # Button(
+        #     Const("🔙 В профиль"),
+        #     id="back_to_profile",
+        #     on_click=on_back_to_profile,
+        # ),
         getter=get_operator_students_data,
         state=OperatorGroupsStates.GROUP_ADD_USER,
+    )
+
+    operator_remove_user_window = Window(
+        Format(
+            "➖ **Удалить участника**\n\n"
+            "⚠️ Выберите участника для удаления из группы:\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+        ),
+        ScrollingGroup(
+            Select(
+                Format("❌ {item[first_name]} {item[last_name]}"),
+                id="client_select",
+                item_id_getter=lambda x: str(x["telegram_id"]),
+                items="clients_page",
+                on_click=on_remove_specific_user,
+            ),
+            id="clients_scroll",
+            width=1,
+            height=5,
+        ),
+        # Back(Const("Назад")),
+        Button(
+            Const("🔙 Назад"),
+            id="back_to_actions",
+            on_click=lambda c, b, m: m.switch_to(OperatorGroupsStates.GROUP_ACTIONS),
+        ),
+        getter=getter_group_clients_for_removal,
+        state=OperatorGroupsStates.GROUP_REMOVE_USER,
     )
 
     # Первый диалог - только для OperatorGroupsStates
@@ -109,22 +160,31 @@ def create_group_dialogs():
         operator_group_window,
         operator_group_actions,
         operator_add_user_window,
+        operator_remove_user_window,
     )
 
     # Второй диалог - только для OperatorGroupCreateStates
     create_group_name_window = Window(
-        Const("Создание группы\nВведите название группы:"),
+        Const(
+            "➕ **Создание группы**\n\n"
+            "🏷️ Шаг 1 из 3: Введите название группы\n"
+            "💡 _Пример: 'Группа Математика 10А'_"
+        ),
         TextInput(
             id="group_name_input",
             type_factory=str,
             on_success=on_group_title_input,
         ),
-        Back(Const("Отменить")),
+        Back(Const("❌ Отменить")),
         state=OperatorGroupCreateStates.CREATE_GROUP_NAME
     )
 
     create_group_description_window = Window(
-        Const("Введите описание группы:"),
+        Const(
+            "➕ **Создание группы**\n\n"
+            "📝 Шаг 2 из 3: Введите описание группы\n"
+            "💡 _Пример: 'Группа для студентов 10 класса по математике'_"
+        ),
         TextInput(
             id="group_description_input",
             type_factory=str,
@@ -137,10 +197,11 @@ def create_group_dialogs():
 
     create_group_confirm_window = Window(
         Format(
-            "Пожалуйста, подтвердите создание группы:\n\n"
-            "Название: {dialog_data[group_title]}\n"
-            "Описание: {dialog_data[group_description]}\n\n"
-            "Все верно?"
+            "➕ **Создание группы**\n\n"
+            "✅ Шаг 3 из 3: Подтверждение\n\n"
+            "🏷️ **Название:** {dialog_data[group_title]}\n"
+            "📝 **Описание:** {dialog_data[group_description]}\n\n"
+            "✅ Все верно?"
         ),
         Row(
             Button(
@@ -149,7 +210,7 @@ def create_group_dialogs():
                 on_click=on_confirm_group_creation,
             ),
             Button(
-                Const("❌ Отменить"),
+                Const("❌ Отмена"),
                 id="cancel_group_creation",
                 on_click=lambda c, b, d: d.dialog_data.clear(
                 ) or d.switch_to(OperatorGroupsStates.GROUP_LIST),
@@ -166,11 +227,17 @@ def create_group_dialogs():
     client_groups_dialog = Dialog(
         Window(
             Format(
-                "Информация о группе\n\n"
-                "{name}\n\n"
-                "{description}"
+                "🏠 **Информация о группе**\n\n"
+                "🏷️ **Название:** {name}\n\n"
+                "📝 **Описание:** {description}\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
             ),
-            Cancel(Const("Назад")),
+            Button(
+                Const("📝 Задачи группы"),
+                id="client_group_tasks",
+                on_click=on_group_tasks_clicked_client,
+            ),
+            Cancel(Const("🔙 Назад")),
             getter=getter_client_group_info,
             state=ClientGroupsStates.GROUP_INFO,
         )

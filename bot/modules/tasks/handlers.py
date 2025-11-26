@@ -50,7 +50,7 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
         if not telegram_id:
             raise ValueError("No telegram_id in event")
 
-        all_tasks = await tasks_service.get_student_tasks(telegram_id, sort_by=sort_by)
+        all_tasks = await user_service.get_student_tasks(telegram_id, sort_by=sort_by)
         tasks = all_tasks
 
         print("All tasks for student:", all_tasks)
@@ -62,7 +62,7 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
         student_telegram_id = start_data.get("student_id")
         student_name = start_data.get("student_name", "Неизвестный студент")
 
-        all_tasks = await tasks_service.get_student_tasks(student_telegram_id, sort_by=sort_by)
+        all_tasks = await user_service.get_student_tasks(student_telegram_id, sort_by=sort_by)
 
         print("All tasks for student by operator:", all_tasks)
 
@@ -70,7 +70,7 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
         header = f"👨‍🎓 Задачи студента: {student_name}"
 
     # === 3. Оператор смотрит задачи группы ===
-    elif context == "group":
+    elif context == "group" or context == "group_client":
         # group_id = start_data.get("group_id")
         group_name = start_data.get("name")
         group: groups_service.GroupReadResponse | None = await groups_service.get_group_by_name(group_name)
@@ -83,6 +83,8 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
         tasks = all_tasks
         header = f"👥 Задачи группы: {group_name}"
 
+    # elif context == "group_client":
+    #     pass
     # фильтрация completed (актуально для студента, но пусть будет везде)
     if not show_completed:
         tasks = [t for t in tasks if t.get(
@@ -177,6 +179,14 @@ async def task_detail_getter(dialog_manager: DialogManager, **kwargs) -> Dict[st
             if student:
                 student_name = f"{student.get('first_name', '')} {student.get('last_name', '')}"
 
+    # Адаптивный текст кнопки "Назад"
+    back_text_map = {
+        "student_self": "К моим задачам",
+        "student_by_operator": "К задачам студента", 
+        "group": "К задачам группы"
+    }
+    back_text = back_text_map.get(context, "К списку задач")
+
     return {
         "task": task,
         "student_name": student_name,
@@ -185,6 +195,7 @@ async def task_detail_getter(dialog_manager: DialogManager, **kwargs) -> Dict[st
         "is_overdue": is_overdue,
         "overdue_warning": overdue_warning,
         "context": context,
+        "back_text": back_text,
     }
 
 
@@ -200,38 +211,6 @@ async def on_task_select(
     await dialog_manager.start(TaskStates.DETAIL, data=dialog_manager.start_data)
 
 
-async def on_student_select(
-    callback: CallbackQuery,
-    widget: Select,
-    dialog_manager: DialogManager,
-    item_id: str,
-):
-    students = await user_service.get_all_students()
-    selected_student = next(
-        (s for s in students if str(s["telegram_id"]) == item_id), None)
-
-    if not selected_student:
-        await callback.answer("❌ Студент не найден")
-        return
-
-    student_name = f"{selected_student['first_name']} {selected_student['last_name']}"
-    student_telegram_id = int(item_id)
-
-    from aiogram_dialog import StartMode
-
-    dialog_manager.dialog_data["selected_student_telegram_id"] = student_telegram_id
-
-    await dialog_manager.start(
-        TaskStates.LIST_TASKS,
-        mode=StartMode.NORMAL,
-        data={
-            "context": "student_by_operator",
-            "student_id": student_telegram_id,
-            "student_name": student_name,
-        },
-    )
-
-
 async def on_back_to_profile(
     callback: CallbackQuery,
     button: Button,
@@ -242,31 +221,6 @@ async def on_back_to_profile(
     await dialog_manager.done()
 
 
-async def get_operator_students_data(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
-    """Getter for operator students list with pagination"""
-    # Get current page from dialog_data
-    current_page = dialog_manager.dialog_data.get("students_page", 0)
-    page_size = 5  # Max 5 students per page
-
-    students = await tasks_service.get_all_students()
-    total_students = len(students)
-    total_pages = (total_students + page_size -
-                   1) // page_size if total_students > 0 else 1
-
-    # Calculate pagination
-    start_idx = current_page * page_size
-    end_idx = start_idx + page_size
-    students_page = students[start_idx:end_idx]
-
-    return {
-        "students_page": students_page,
-        "total_students": total_students,
-        "current_page": current_page + 1,  # Display 1-indexed
-        "total_pages": total_pages,
-        "has_prev": current_page > 0,
-        "has_next": current_page < total_pages - 1,
-    }
-
 async def on_delete_task(c, b, dialog_manager: DialogManager):
     task_id = dialog_manager.start_data.get("task_id")
     if not task_id:
@@ -274,7 +228,7 @@ async def on_delete_task(c, b, dialog_manager: DialogManager):
         return
 
     success = await tasks_service.delete_task(task_id)
-    
+
     if success:
         await c.answer("✅ Задача успешно удалена")
         await dialog_manager.done()  # Go back after deletion
@@ -588,20 +542,20 @@ async def on_confirm_create_task(
     description = dialog_manager.dialog_data.get("task_description", "")
     start_date = dialog_manager.dialog_data.get("task_start_date", "")
     due_date = dialog_manager.dialog_data.get("task_due_date", "Не указано")
-    
+
     obj_id: str
     current_context = dialog_manager.start_data.get("context")
-    
+
     if current_context == "group":
-        obj_id = dialog_manager.start_data.get("id") 
-    
+        obj_id = dialog_manager.start_data.get("id")
+
     elif current_context == "student_by_operator":
         obj_id = dialog_manager.start_data.get("student_id")
-        
+
     else:
         await callback.answer("❌ Ошибка: неверный контекст создания задачи")
         return
-        
+
     print(dialog_manager.start_data)
 
     if not all([title, description, start_date, obj_id]):
@@ -622,7 +576,7 @@ async def on_confirm_create_task(
             due_date=due_date if due_date != "Не указано" else None,
         )
         print("here", task)
-    
+
     if current_context == "student_by_operator":
         task = await create_task_and_assign(
             title=title,
@@ -631,7 +585,7 @@ async def on_confirm_create_task(
             due_date=due_date if due_date != "Не указано" else None,
             student_telegram_id=obj_id,
         )
-        
+
     print("c task", task)
 
     if task:
@@ -769,7 +723,7 @@ async def on_task_result_input(
     print("DATA: ")
     print(dialog_manager.dialog_data)
     print(dialog_manager.start_data)
-    
+
     task_id = dialog_manager.start_data.get("task_id")
 
     if not task_id:

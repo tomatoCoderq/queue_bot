@@ -8,10 +8,12 @@ import asyncio
 from bot.modules.start.handlers import router as start_router
 from bot.modules.tasks.handlers import router as tasks_router
 from bot.modules.groups.handlers import router as groups_router
+from bot.modules.users.handlers import router as users_router
 
 from bot.modules.start.windows import create_dialogs
 from bot.modules.tasks.windows import create_task_dialogs
 from bot.modules.groups.windows import create_group_dialogs
+from bot.modules.users.windows import create_user_dialogs
 # from bot.modules.groups.windows import create_group_dialogs
 
 from bot.scheduler import setup_scheduler, shutdown_scheduler
@@ -25,11 +27,12 @@ dp = Dispatcher()
 async def main():
     print("Starting bot...")
 
-    bot = Bot(token=settings.telegram.TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    bot = Bot(token=settings.telegram.TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
     dp = Dispatcher()
     
     # Include routers
     dp.include_router(start_router)
+    dp.include_router(users_router)
     dp.include_router(groups_router)
     dp.include_router(tasks_router)
     
@@ -40,6 +43,9 @@ async def main():
     registration_dialog, profile_dialog = create_dialogs()
     dp.include_router(registration_dialog)
     dp.include_router(profile_dialog)
+
+    client_dialog = create_user_dialogs()
+    dp.include_router(client_dialog)
     
     # Create and include group dialogs
     groups_dialog, create_group_dialog, client_groups_dialog = create_group_dialogs()
@@ -48,11 +54,12 @@ async def main():
     dp.include_router(client_groups_dialog)
     
     # Create and include task dialogs
-    operator_students_dialog, operator_task_create_dialog, operator_review_dialog, tasks_dialog = create_task_dialogs()
-    dp.include_router(operator_students_dialog)
+    operator_task_create_dialog, operator_review_dialog, tasks_dialog = create_task_dialogs()
     dp.include_router(operator_task_create_dialog)
     dp.include_router(operator_review_dialog)
     dp.include_router(tasks_dialog)
+    
+    
     # Setup scheduler
     await setup_scheduler()
 

@@ -324,4 +324,3 @@ async def mark_overdue_notification_sent(task_id: str) -> bool:
     except Exception as e:
         print(f"Error marking overdue notification: {e}")
         return False
-

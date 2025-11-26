@@ -84,21 +84,26 @@ async def get_group(input: str, by_id: bool, db: DbSession):  # type: ignore
     return group
 
 
-@router.delete("/{group_id}/student/{student_id}",
+@router.delete("/{group_id}/student/{client_id}",
                status_code=202,
                description="Remove specific student as member of given group")
 # type: ignore
-async def remove_student_from_group(group_id: UUID, student_id: UUID, db: DbSession):
+async def remove_client_from_group(group_id: UUID, client_id: UUID | str, by_telegram_id: bool, db: DbSession): # type: ignore
     group = await repo.read_group(group_id, db)
-    student = await user_repo.read_user(student_id, db)
-
+    client = None
+    if by_telegram_id:
+        client = await user_repo.read_client_by_telegram_id(client_id, db)
+    else:
+        client = await user_repo.read_client_by_user_id(client_id, db)
+        
+    
     if group is None:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    if student is None:
+    if client is None:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    await repo.remove_student(group, student, db)
+    await repo.remove_client(group, client, db)
 
 
 @router.get("/{group_id}/tasks",

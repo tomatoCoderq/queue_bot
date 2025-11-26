@@ -40,7 +40,7 @@ async def get_group_by_id(group_id: str) -> Optional[GroupReadResponse]:
     
 async def get_group_by_name(name: str):
     async with httpx.AsyncClient(timeout=10) as client:
-        url = f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/groups/{name}"
+        url = f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/groups/{name}?by_id=False"
         
         response = await client.get(url)
         response.raise_for_status()
@@ -64,12 +64,12 @@ async def add_student_to_group(group_id: str, student_id: str) -> bool:
 
 async def remove_student_from_group(group_id: str, student_id: str) -> bool:
     async with httpx.AsyncClient(timeout=10) as client:
-        url = f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/groups/{group_id}/student/{student_id}"
+        url = f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/groups/{group_id}/student/{student_id}?by_telegram_id=True"
         
         response = await client.delete(url)
         response.raise_for_status()
         
-        return response.status_code == 200
+        return response.status_code == 202
 
 async def get_group_tasks(group_id: str) -> List[Dict[str, Any]]:
     async with httpx.AsyncClient(timeout=10) as client:

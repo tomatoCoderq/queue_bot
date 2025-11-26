@@ -176,7 +176,6 @@ async def on_menu_tasks(
         return
 
     if role == "student":
-
         await dialog_manager.start(
             OperatorTaskStates.LIST_TASKS,
             mode=StartMode.NORMAL,

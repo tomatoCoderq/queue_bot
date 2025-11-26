@@ -38,7 +38,6 @@ async def read_group_by_name(name: str, db: DbSession): # type: ignore
 
 
 async def add_client_to_group(group: Group, user: models.User, db: DbSession):  # type: ignore
-
     result = await db.execute(
         select(models.Client)
         .where(models.Client.user_id == user.id)
@@ -65,11 +64,22 @@ async def add_client_to_group(group: Group, user: models.User, db: DbSession):  
 
 
 async def remove_client(group: Group, client: Client, db: DbSession):  # type: ignore
-    group.clients.remove(client)
+    # result = await db.execute(
+    #     select(models.Client)
+    #     .where(models.Client.user_id == user.id)
+    # )
+    # client = result.scalar()
+    
+    client.group_id = None
+    
+    db.add(client)
+    
     await db.commit()
+    
+    await db.refresh(client)
     await db.refresh(group)
+    
     return group
-
 
 async def get_tasks(group: Group, db: DbSession):  # type: ignore
     result = await db.execute(select(Task).where(Task.group == group))

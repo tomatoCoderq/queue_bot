@@ -121,7 +121,7 @@ def create_dialogs():
                 on_click=on_menu_tasks,
             ),
             Button(
-                Format("Группы и задачи"),
+                Format("Группы"),
                 id="menu_groups",
                 on_click=on_groups_tasks,
                 # when="is_operator",
@@ -131,6 +131,11 @@ def create_dialogs():
                 id="menu_review_tasks",
                 on_click=on_menu_review_tasks,
                 when="is_operator",
+            ),
+            Button(
+                Const("Принты"),
+                id="menu_prints",
+                # on_click=on_menu_prints, 
             ),
             Button(
                 Const("⚙️ Настройки"),

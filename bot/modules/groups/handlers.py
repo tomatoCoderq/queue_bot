@@ -45,7 +45,6 @@ async def get_all_groups_data(
 #     dialog_manager.dialog_data['group_name'] = group_name
 
 async def on_group_tasks_clicked(c, b, m: DialogManager):
-    
     await m.start(
         TaskStates.LIST_TASKS,
         mode=StartMode.NORMAL,
@@ -54,9 +53,29 @@ async def on_group_tasks_clicked(c, b, m: DialogManager):
               "id": m.dialog_data.get("selected_group").get("id"),},
     )
 
+async def on_group_tasks_clicked_client(c, b, m: DialogManager):
+    print(m.dialog_data, m.start_data)
+    group_id = await service.get_client_group(m.start_data.get("telegram_id"))
+    
+    group = await service.get_group_by_id(group_id)
+
+    
+    await m.start(
+        TaskStates.LIST_TASKS,
+        mode=StartMode.NORMAL,
+        data={"context": "group_client",
+              "name": group.name,
+              "id" : group.id,
+        }
+    )
+
 async def on_add_user_group(c, w, m: DialogManager):
     """Handle 'Add User to Group' button click - switch to add user state"""
     await m.switch_to(OperatorGroupsStates.GROUP_ADD_USER)
+
+async def on_remove_user_group(c, w, m: DialogManager):
+
+    await m.switch_to(OperatorGroupsStates.GROUP_REMOVE_USER)
 
 async def on_add_specific_user(callback: CallbackQuery,
                           widget: Select,
@@ -74,6 +93,29 @@ async def on_add_specific_user(callback: CallbackQuery,
         await callback.answer("✅ Участник успешно добавлен в группу.")
     else:
         await callback.answer("❌ Ошибка при добавлении участника. Попробуйте позже.")
+
+async def on_remove_specific_user(callback: CallbackQuery,
+                          widget: Select,
+                          dialog_manager: DialogManager,
+                          item_id: str,
+                          ):
+    print(dialog_manager.dialog_data, dialog_manager.start_data)
+    group = dialog_manager.dialog_data.get("selected_group")
+    if not group:
+        await callback.answer("❌ Группа не найдена")
+        return
+    
+    success = await service.remove_student_from_group(group["id"], item_id)
+    if success:
+        await callback.answer("✅ Участник успешно удален из группы.")
+    else:
+        await callback.answer("❌ Ошибка при удалении участника. Попробуйте позже.")
+
+async def on_delete_group(callback: CallbackQuery,
+                         button: Button,
+                         dialog_manager: DialogManager):
+    """Handle delete group button click - show development message"""
+    await callback.answer("🔧 Функция удаления группы находится в процессе разработки.", show_alert=True)
         
         
 async def getter_group_clients(dialog_manager: DialogManager, **kwargs):
@@ -89,6 +131,16 @@ async def getter_group_clients(dialog_manager: DialogManager, **kwargs):
     students_text = "\n".join(lines) if lines else "В группе нет участников"
 
     return {"students_text": students_text}
+
+async def getter_group_clients_for_removal(dialog_manager: DialogManager, **kwargs):
+    """Get group clients for removal - returns list format for Select widget"""
+    group_id = dialog_manager.dialog_data["selected_group"]["id"]
+    clients = await service.get_group_clients(group_id)
+    
+    print("Clients for removal: ", clients)
+    
+    # Return in format suitable for Select widget
+    return {"clients_page": clients} 
 
 
 async def on_group_select(callback: CallbackQuery,

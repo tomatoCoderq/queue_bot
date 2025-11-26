@@ -12,6 +12,12 @@ class RegistrationStates(StatesGroup):
 class ProfileStates(StatesGroup):
     PROFILE = State()
 
+class OperatorStudentsStates(StatesGroup):
+    STUDENTS_LIST = State()
+    STUDENTS_INFO = State()
+    STUDENTS_PENALTIES = State()
+    STUDENTS_PRINTS = State()
+    
 
 class OperatorTaskStates(StatesGroup):
     LIST_TASKS = State()
@@ -20,17 +26,10 @@ class OperatorTaskStates(StatesGroup):
     REVIEW_DETAIL = State()
     REJECT_COMMENT = State()
 
-
 class StudentStates(StatesGroup):
     MY_TASKS = State()
     TASK_DETAIL = State()
     SUBMIT_TASK_RESULT = State()
-
-
-class OperatorStudentsStates(StatesGroup):
-    STUDENTS_LIST = State()
-    STUDENT_TASKS = State()
-    TASK_DETAIL = State()
 
 
 class ClientGroupsStates(StatesGroup):
@@ -40,6 +39,7 @@ class OperatorGroupsStates(StatesGroup):
     GROUP_LIST = State()
     GROUP_ACTIONS = State()
     GROUP_ADD_USER = State()
+    GROUP_REMOVE_USER = State()
 
 
 class OperatorTaskCreateStates(StatesGroup):

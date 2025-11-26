@@ -12,3 +12,4 @@ app.db
 .vscode/
 Queue\ Bot\ API/
 not/
+.ruff_cache/
