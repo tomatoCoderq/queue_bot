@@ -13,3 +13,4 @@ app.db
 Queue\ Bot\ API/
 not/
 .ruff_cache/
+uploads/

@@ -98,11 +98,31 @@ async def on_client_tasks(c, b, dialog_manager: DialogManager):
     )
 
 async def on_client_penalties(c, b, dialog_manager: DialogManager):
-    pass
+    await c.answer("🔧 Функция штрафов находится в процессе разработки.", show_alert=True)
 
 async def on_client_details(c, b, dialog_manager: DialogManager):
-    pass
+    await c.answer("🔧 Функция принтов находится в процессе разработки.", show_alert=True)
 
-async def getter_client_card(c, b, dialog_manager: DialogManager):
-    pass
-
+async def getter_client_card(dialog_manager: DialogManager, **kwargs):
+    '''return: name, tid, tasks, penalties'''
+    to_return = {}
+    selected_student_telegram_id = dialog_manager.dialog_data["selected_student_telegram_id"]
+    
+    print(dialog_manager.start_data, dialog_manager.dialog_data)
+    
+    client = await user_service.get_user_by_id(selected_student_telegram_id)
+    print(client)
+    
+    tasks = await user_service.get_student_tasks(selected_student_telegram_id)
+    print(tasks)
+    
+    to_return["name"] = client["first_name"] + " " + client["last_name"]
+    to_return["telegram_id"] = selected_student_telegram_id
+    to_return["tasks"] = len(tasks)
+    to_return["penalties"] = 0
+    
+    return to_return
+    
+    
+    
+    

@@ -62,7 +62,7 @@ class APISettings(BaseSettings):
 
 class TelegramSettings(BaseSettings):
     TOKEN: str = Field(default="invalid_token")
-    ADMIN_ID: int = Field(default=0)
+    ADMIN_IDS: str
     
     model_config = SettingsConfigDict(
         env_file=str(PROJECT_ROOT / ".env"),
@@ -84,3 +84,4 @@ class Settings(BaseSettings):
     )
 
 settings = Settings()
+print("Loaded settings:", settings)

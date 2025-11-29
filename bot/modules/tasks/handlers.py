@@ -3,7 +3,7 @@ from aiogram.types import CallbackQuery, Message, InputMediaDocument, InputMedia
 from aiogram_dialog import DialogManager
 from aiogram_dialog.widgets.kbd import Button, Select
 from aiogram_dialog.widgets.input import ManagedTextInput, MessageInput
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
 from typing import Dict, Any
 from html import escape
@@ -71,7 +71,7 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
         print("All tasks for student by operator:", all_tasks)
 
         tasks = all_tasks
-        header = f"👨‍🎓 Задачи студента: {escape(student_name)}"
+        header = f" Задачи студента: {escape(student_name)}"
 
     # === 3. Оператор смотрит задачи группы ===
     elif context == "group" or context == "group_client":
@@ -139,7 +139,6 @@ async def task_detail_getter(dialog_manager: DialogManager, **kwargs) -> Dict[st
     if not task:
         return {}
 
-    # форматирование дат – оставляем твой код
     start_date = task.get("start_date", "Не указано")
     due_date = task.get("due_date", "Не указано")
 
@@ -270,7 +269,7 @@ async def on_page_prev(
 
 
 def format_date(date_str: str) -> str:
-    """Format date string to readable format with time"""
+    """Format date string to readable format with time (+3 hours timezone adjustment)"""
     if not date_str or date_str == "Не указано":
         return "Не указано"
 
@@ -283,6 +282,8 @@ def format_date(date_str: str) -> str:
     for fmt in formats_to_try:
         try:
             dt = datetime.strptime(date_str.split('+')[0].split('Z')[0], fmt)
+            # Add 3 hours for timezone adjustment (UTC+3)
+            dt = dt + timedelta(hours=3)
             # Include time if it's present in the format
             if 'H' in fmt:
                 return dt.strftime("%d.%m.%Y %H:%M")
@@ -460,7 +461,7 @@ async def on_no_due_date(
     dialog_manager: DialogManager,
 ):
     """Set no due date"""
-    dialog_manager.dialog_data["task_due_date"] = "Не указано"
+    dialog_manager.dialog_data["task_due_date"] = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d %H:%M")
     from bot.modules.states import OperatorTaskCreateStates
     await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_WAIT_PHOTOS)
     await callback.answer("✅ Дедлайн не установлен")
@@ -537,7 +538,6 @@ async def on_proceed_all_files_added(
 
 
 async def get_files_data(dialog_manager: DialogManager, **kwargs):
-    # Теперь работаем только с pending_files
     pending_files = dialog_manager.dialog_data.get("pending_files", [])
     files_count = len(pending_files)
 

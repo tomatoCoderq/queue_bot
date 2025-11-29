@@ -349,7 +349,7 @@ def create_task_dialogs():
             ),
         ),
         Button(
-            Const("Показать завершённые"),
+            Const("✅ Показать завершённые"),
             id="toggle_completed_op",
             on_click=on_toggle_completed_tasks,
         ),

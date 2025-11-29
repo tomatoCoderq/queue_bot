@@ -121,7 +121,7 @@ def create_dialogs():
                 on_click=on_menu_tasks,
             ),
             Button(
-                Format("Группы"),
+                Format("👥 Группы"),
                 id="menu_groups",
                 on_click=on_groups_tasks,
                 # when="is_operator",
@@ -133,8 +133,9 @@ def create_dialogs():
                 when="is_operator",
             ),
             Button(
-                Const("Принты"),
+                Const("🖨 Принты"),
                 id="menu_prints",
+                on_click=lambda c, b, m: c.answer("🔧 Функция принтов находится в процессе разработки.", show_alert=True),
                 # on_click=on_menu_prints, 
             ),
             Button(

@@ -9,6 +9,7 @@ from bot.modules.states import ClientGroupsStates, OperatorTaskStates, Registrat
 
 from bot.modules.users import service as user_service
 from bot.modules.groups import service as group_service
+from src import config
 
 router = Router()
 
@@ -20,6 +21,7 @@ async def cmd_start(message: types.Message, dialog_manager: DialogManager):
         return
 
     telegram_id = message.from_user.id
+    alias = message.from_user.username
     user = await user_service.get_user(telegram_id)
 
     if user:
@@ -27,13 +29,16 @@ async def cmd_start(message: types.Message, dialog_manager: DialogManager):
         await dialog_manager.start(
             ProfileStates.PROFILE,
             mode=StartMode.RESET_STACK,
-            data={"telegram_id": telegram_id}
+            data={"telegram_id": telegram_id,
+                  "alias": alias}
         )
     else:
         # User is not registered, start registration from ROLE_CHOICE
         await dialog_manager.start(
             RegistrationStates.ROLE_CHOICE,
             mode=StartMode.RESET_STACK,
+            data={"telegram_id": telegram_id,
+                  "alias": alias}
         )
 
 
@@ -47,6 +52,16 @@ async def on_role_select(c, b, dialog_manager: DialogManager,):
 
     widget_id = b.widget_id or "role_student"
     role = role_map.get(widget_id, "student")
+    
+    admins = config.settings.telegram.ADMIN_IDS.split(",")
+    if role == "operator" and dialog_manager.start_data.get("alias") not in admins:
+        await c.answer("❌ У вас нет прав оператора.")
+        return
+    
+    if role == "parent":
+        await c.answer("❌ Роль 'Родитель' пока недоступна.")
+        return
+    
     dialog_manager.dialog_data["role"] = role
 
     await dialog_manager.switch_to(RegistrationStates.FIRST_NAME)

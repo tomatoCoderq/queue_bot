@@ -18,7 +18,7 @@ def create_user_dialogs():
         on_client_details,
         getter_client_card,
         on_student_select,
-        get_operator_students_data
+        get_operator_students_data,
     )
     
     operator_students_window = Window(
@@ -53,11 +53,11 @@ def create_user_dialogs():
     client_card_window = Window(
         Format(
             "🎓 <b>Профиль студента</b>\n\n"
-            "👤 <b>Имя:</b> todo\n"
-            "🆔 <b>Telegram ID:</b> todo\n\n"
+            "👤 <b>Имя:</b> {name}\n"
+            "🆔 <b>Telegram ID:</b> {telegram_id}\n\n"
             "📊 <b>Статистика:</b>\n"
-            "📝 Количество задач: <i>в разработке</i>\n"
-            "⚠️ Количество штрафов: <i>в разработке</i>\n\n"
+            "📝 Количество задач: {tasks}\n"
+            "⚠️ Количество штрафов: {penalties}\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
         ),
         Group(
@@ -72,12 +72,13 @@ def create_user_dialogs():
                 on_click=on_client_penalties,
             ),
             Button(
-                Const("🔍 Принты"),
+                Const("🖨 Принты"),
                 id="client_details_button",
                 on_click=on_client_details,
             ),
             Back(Const("🔙 Назад")),
         ),
+        getter=getter_client_card,
         state=OperatorStudentsStates.STUDENTS_INFO,
     )
     
