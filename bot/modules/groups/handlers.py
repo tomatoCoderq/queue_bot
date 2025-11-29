@@ -265,6 +265,8 @@ async def getter_client_group_info(dialog_manager: DialogManager, **kwargs):
     # user = await user_service.get_user_by_id(dialog_manager.start_data.get("telegram_id"))
     
     group_id = await service.get_client_group(dialog_manager.start_data.get("telegram_id"))
+    if group_id is None:
+        return {"group_name": "Группа не найдена", "group_description": ""}
     group = await service.get_group_by_id(group_id)
     
     print("Group info:", group)

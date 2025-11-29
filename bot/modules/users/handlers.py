@@ -7,6 +7,7 @@
 from typing import Any, Dict
 from aiogram import Router
 from aiogram_dialog import DialogManager
+from html import escape
 
 
 from bot.modules import states
@@ -62,7 +63,7 @@ async def on_student_select(
         await callback.answer("❌ Студент не найден")
         return
 
-    student_name = f"{selected_student['first_name']} {selected_student['last_name']}"
+    student_name = f"{escape(selected_student['first_name'])} {escape(selected_student['last_name'])}"
     student_telegram_id = int(item_id)
 
     from aiogram_dialog import StartMode

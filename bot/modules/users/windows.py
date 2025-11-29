@@ -23,7 +23,7 @@ def create_user_dialogs():
     
     operator_students_window = Window(
         Format(
-            "👥 **Список студентов**\n\n"
+            "👥 <b>Список студентов</b>\n\n"
             "📊 Всего студентов: {total_students}\n"
             "📄 Страница {current_page} из {total_pages}\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -52,12 +52,12 @@ def create_user_dialogs():
     
     client_card_window = Window(
         Format(
-            "🎓 **Профиль студента**\n\n"
-            "👤 **Имя:** todo\n"
-            "🆔 **Telegram ID:** todo\n\n"
-            "📊 **Статистика:**\n"
-            "📝 Количество задач: _в разработке_\n"
-            "⚠️ Количество штрафов: _в разработке_\n\n"
+            "🎓 <b>Профиль студента</b>\n\n"
+            "👤 <b>Имя:</b> todo\n"
+            "🆔 <b>Telegram ID:</b> todo\n\n"
+            "📊 <b>Статистика:</b>\n"
+            "📝 Количество задач: <i>в разработке</i>\n"
+            "⚠️ Количество штрафов: <i>в разработке</i>\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
         ),
         Group(

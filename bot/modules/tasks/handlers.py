@@ -1,15 +1,19 @@
 from aiogram import Router
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, InputMediaDocument, InputMediaPhoto
 from aiogram_dialog import DialogManager
 from aiogram_dialog.widgets.kbd import Button, Select
-from aiogram_dialog.widgets.input import ManagedTextInput
+from aiogram_dialog.widgets.input import ManagedTextInput, MessageInput
 from datetime import datetime, timedelta
+
 from typing import Dict, Any
+from html import escape
+
 
 from bot.modules.states import OperatorTaskStates as TaskStates
 from bot.modules.tasks import service as tasks_service
 from bot.modules.users import service as user_service
 from bot.modules.groups import service as groups_service
+from bot.modules.files import service as files_service
 
 
 router = Router()
@@ -67,7 +71,7 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
         print("All tasks for student by operator:", all_tasks)
 
         tasks = all_tasks
-        header = f"👨‍🎓 Задачи студента: {student_name}"
+        header = f"👨‍🎓 Задачи студента: {escape(student_name)}"
 
     # === 3. Оператор смотрит задачи группы ===
     elif context == "group" or context == "group_client":
@@ -81,7 +85,7 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
         print("All tasks for group by operator:", all_tasks)
 
         tasks = all_tasks
-        header = f"👥 Задачи группы: {group_name}"
+        header = f"👥 Задачи группы: {escape(group_name) if group_name else 'Неизвестная группа'}"
 
     # elif context == "group_client":
     #     pass
@@ -177,12 +181,12 @@ async def task_detail_getter(dialog_manager: DialogManager, **kwargs) -> Dict[st
         if student_id:
             student = await user_service.get_user(student_id)
             if student:
-                student_name = f"{student.get('first_name', '')} {student.get('last_name', '')}"
+                student_name = f"{escape(student.get('first_name', ''))} {escape(student.get('last_name', ''))}"
 
     # Адаптивный текст кнопки "Назад"
     back_text_map = {
         "student_self": "К моим задачам",
-        "student_by_operator": "К задачам студента", 
+        "student_by_operator": "К задачам студента",
         "group": "К задачам группы"
     }
     back_text = back_text_map.get(context, "К списку задач")
@@ -343,6 +347,24 @@ async def on_task_start_date_input(
     await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_DUE_DATE)
 
 
+# ============ QUICK START DATE HANDLERS ============
+
+async def on_start_date_now(
+    callback: CallbackQuery,
+    button: Button,
+    dialog_manager: DialogManager,
+):
+    """Установить время начала - сейчас"""
+    from bot.modules.states import OperatorTaskCreateStates
+
+    now = datetime.now()
+    start_date = (now + timedelta(seconds=60)).strftime("%Y-%m-%d %H:%M")
+
+    dialog_manager.dialog_data["task_start_date"] = start_date
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_DUE_DATE)
+    await callback.answer(f"⏰ Время начала: {start_date}")
+
+
 async def on_task_due_date_input(
     message: Message,
     widget: ManagedTextInput,
@@ -366,51 +388,7 @@ async def on_task_due_date_input(
 
     dialog_manager.dialog_data["task_due_date"] = data
     from bot.modules.states import OperatorTaskCreateStates
-    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
-
-
-# ============ QUICK DUE DATE HANDLERS ============
-
-async def on_due_date_30min(
-    callback: CallbackQuery,
-    button: Button,
-    dialog_manager: DialogManager,
-):
-    """Set due date to +30 minutes from start date"""
-    start_date_str = dialog_manager.dialog_data.get("task_start_date")
-    if not start_date_str:
-        await callback.answer("❌ Ошибка: дата начала не установлена")
-        return
-
-    start_dt = parse_datetime(start_date_str)
-    due_dt = start_dt + timedelta(minutes=30)
-    due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
-
-    dialog_manager.dialog_data["task_due_date"] = due_date_str
-    from bot.modules.states import OperatorTaskCreateStates
-    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
-    await callback.answer(f"✅ Дедлайн: {due_date_str}")
-
-
-async def on_due_date_45min(
-    callback: CallbackQuery,
-    button: Button,
-    dialog_manager: DialogManager,
-):
-    """Set due date to +45 minutes from start date"""
-    start_date_str = dialog_manager.dialog_data.get("task_start_date")
-    if not start_date_str:
-        await callback.answer("❌ Ошибка: дата начала не установлена")
-        return
-
-    start_dt = parse_datetime(start_date_str)
-    due_dt = start_dt + timedelta(minutes=45)
-    due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
-
-    dialog_manager.dialog_data["task_due_date"] = due_date_str
-    from bot.modules.states import OperatorTaskCreateStates
-    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
-    await callback.answer(f"✅ Дедлайн: {due_date_str}")
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_WAIT_PHOTOS)
 
 
 async def on_due_date_1hour(
@@ -430,7 +408,7 @@ async def on_due_date_1hour(
 
     dialog_manager.dialog_data["task_due_date"] = due_date_str
     from bot.modules.states import OperatorTaskCreateStates
-    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_WAIT_PHOTOS)
     await callback.answer(f"✅ Дедлайн: {due_date_str}")
 
 
@@ -451,49 +429,7 @@ async def on_due_date_2hours(
 
     dialog_manager.dialog_data["task_due_date"] = due_date_str
     from bot.modules.states import OperatorTaskCreateStates
-    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
-    await callback.answer(f"✅ Дедлайн: {due_date_str}")
-
-
-async def on_due_date_4hours(
-    callback: CallbackQuery,
-    button: Button,
-    dialog_manager: DialogManager,
-):
-    """Set due date to +4 hours from start date"""
-    start_date_str = dialog_manager.dialog_data.get("task_start_date")
-    if not start_date_str:
-        await callback.answer("❌ Ошибка: дата начала не установлена")
-        return
-
-    start_dt = parse_datetime(start_date_str)
-    due_dt = start_dt + timedelta(hours=4)
-    due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
-
-    dialog_manager.dialog_data["task_due_date"] = due_date_str
-    from bot.modules.states import OperatorTaskCreateStates
-    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
-    await callback.answer(f"✅ Дедлайн: {due_date_str}")
-
-
-async def on_due_date_8hours(
-    callback: CallbackQuery,
-    button: Button,
-    dialog_manager: DialogManager,
-):
-    """Set due date to +8 hours from start date"""
-    start_date_str = dialog_manager.dialog_data.get("task_start_date")
-    if not start_date_str:
-        await callback.answer("❌ Ошибка: дата начала не установлена")
-        return
-
-    start_dt = parse_datetime(start_date_str)
-    due_dt = start_dt + timedelta(hours=8)
-    due_date_str = due_dt.strftime("%Y-%m-%d %H:%M")
-
-    dialog_manager.dialog_data["task_due_date"] = due_date_str
-    from bot.modules.states import OperatorTaskCreateStates
-    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_WAIT_PHOTOS)
     await callback.answer(f"✅ Дедлайн: {due_date_str}")
 
 
@@ -514,7 +450,7 @@ async def on_due_date_1day(
 
     dialog_manager.dialog_data["task_due_date"] = due_date_str
     from bot.modules.states import OperatorTaskCreateStates
-    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_WAIT_PHOTOS)
     await callback.answer(f"✅ Дедлайн: {due_date_str}")
 
 
@@ -526,8 +462,102 @@ async def on_no_due_date(
     """Set no due date"""
     dialog_manager.dialog_data["task_due_date"] = "Не указано"
     from bot.modules.states import OperatorTaskCreateStates
-    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_WAIT_PHOTOS)
     await callback.answer("✅ Дедлайн не установлен")
+
+
+async def on_add_file(
+    callback: CallbackQuery,
+    button: Button,
+    dialog_manager: DialogManager,
+):
+    """Переход в состояние ожидания файла от пользователя"""
+    from bot.modules.states import OperatorTaskCreateStates
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_ADD_PHOTO)
+    await callback.answer("📎 Отправьте файл (фото или документ)")
+
+
+async def on_file_received(
+    message: Message,
+    message_input: MessageInput,
+    dialog_manager: DialogManager,
+):
+    """Обработка полученного файла (фото или документ)"""
+    # Инициализируем список файлов если его нет
+    if "pending_files" not in dialog_manager.dialog_data:
+        dialog_manager.dialog_data["pending_files"] = []
+
+    file_info = None
+
+    if message.photo:
+        photo = message.photo[-1]
+        file_info = {
+            "type": "photo",
+            "name": f"photo_{len(dialog_manager.dialog_data['pending_files']) + 1}.jpg",
+            "file_id": photo.file_id,
+            "file_size": photo.file_size
+        }
+    elif message.document:
+        doc = message.document
+        file_info = {
+            "type": "document",
+            "name": doc.file_name or f"document_{len(dialog_manager.dialog_data['pending_files']) + 1}",
+            "file_id": doc.file_id,
+            "file_size": doc.file_size
+        }
+
+    print("file info", file_info)
+
+    if file_info:
+        # Просто сохраняем информацию о файле, не загружаем пока через API
+        dialog_manager.dialog_data["pending_files"].append(file_info)
+
+        files_count = len(dialog_manager.dialog_data["pending_files"])
+
+        # Возвращаемся в состояние ожидания файлов
+        from bot.modules.states import OperatorTaskCreateStates
+        await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_WAIT_PHOTOS)
+
+        await message.answer(f"✅ Файл добавлен: {file_info['name']}\n📎 Всего файлов: {files_count}")
+    else:
+        await message.answer("❌ Поддерживаются только фото и документы")
+
+
+async def on_proceed_all_files_added(
+    callback: CallbackQuery,
+    button: Button,
+    dialog_manager: DialogManager,
+):
+    """Переход к подтверждению создания задачи (файлы будут загружены при создании задачи)"""
+    from bot.modules.states import OperatorTaskCreateStates
+
+    # Просто переходим к подтверждению, файлы загрузим при создании задачи с task_id
+    await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
+    await callback.answer("➡️ Переход к подтверждению задачи")
+
+
+async def get_files_data(dialog_manager: DialogManager, **kwargs):
+    # Теперь работаем только с pending_files
+    pending_files = dialog_manager.dialog_data.get("pending_files", [])
+    files_count = len(pending_files)
+
+    if files_count == 0:
+        files_info = "Файлы не добавлены"
+    else:
+        files_list = []
+        for i, file in enumerate(pending_files, 1):
+            file_type_emoji = "🖼️" if file["type"] == "photo" else "📄"
+            # Экранируем HTML-символы в именах файлах
+            safe_name = file["name"].replace("&", "&amp;").replace(
+                "<", "&lt;").replace(">", "&gt;")
+            files_list.append(f"{i}. {file_type_emoji} {safe_name}")
+        files_info = "\n".join(files_list)
+
+    return {
+        "files_count": files_count,
+        "files_info": files_info,
+        "has_files": files_count > 0
+    }
 
 
 async def on_confirm_create_task(
@@ -542,6 +572,8 @@ async def on_confirm_create_task(
     description = dialog_manager.dialog_data.get("task_description", "")
     start_date = dialog_manager.dialog_data.get("task_start_date", "")
     due_date = dialog_manager.dialog_data.get("task_due_date", "Не указано")
+
+    print("start_date:", start_date)
 
     obj_id: str
     current_context = dialog_manager.start_data.get("context")
@@ -559,7 +591,7 @@ async def on_confirm_create_task(
     print(dialog_manager.start_data)
 
     if not all([title, description, start_date, obj_id]):
-        print([title, description, start_date, obj_id])
+        print([title, description, start_date,  obj_id])
         await callback.answer("❌ Ошибка: отсутствуют данные")
         return
 
@@ -589,12 +621,49 @@ async def on_confirm_create_task(
     print("c task", task)
 
     if task:
+        task_id = task.get("id")
+        pending_files = dialog_manager.dialog_data.get("pending_files", [])
+
+        # Загружаем файлы с task_id сразу после создания задачи
+        if pending_files and task_id:
+            try:
+                uploaded_count = 0
+                for file_info in pending_files:
+                    # Получаем файл из Telegram
+                    telegram_file = await callback.bot.get_file(file_info["file_id"])
+                    file_data = await callback.bot.download_file(telegram_file.file_path)
+
+                    # Читаем содержимое файла
+                    file_bytes = file_data.read()
+
+                    # Загружаем файл с привязкой к задаче
+                    print("loaded type", file_info["type"])
+                    uploaded_file = await files_service.upload_file(
+                        file_data=file_bytes,
+                        filename=file_info["name"],
+                        file_type=file_info["type"],
+                        task_id=task_id,
+                        file_id=file_info["file_id"]
+                    )
+
+                    print("FILES UPLOADED? : ", uploaded_file)
+
+                    if uploaded_file:
+                        uploaded_count += 1
+                    else:
+                        print(f"Ошибка загрузки файла file_info['name']")
+
+                print(f"Загружено uploaded_count файлов для задачи {task_id}")
+            except Exception as e:
+                print(f"Ошибка при загрузке файлов: {e}")
+
         await callback.answer("✅ Задача успешно создана и назначена студенту!")
         # Clear task creation data
         dialog_manager.dialog_data.pop("task_title", None)
         dialog_manager.dialog_data.pop("task_description", None)
         dialog_manager.dialog_data.pop("task_start_date", None)
         dialog_manager.dialog_data.pop("task_due_date", None)
+        dialog_manager.dialog_data.pop("pending_files", None)
         # Return to student tasks list
         await dialog_manager.done()
     else:
@@ -612,6 +681,11 @@ async def on_cancel_create_task(
     dialog_manager.dialog_data.pop("task_description", None)
     dialog_manager.dialog_data.pop("task_start_date", None)
     dialog_manager.dialog_data.pop("task_due_date", None)
+
+    # Очищаем pending_files (они еще не загружены в API)
+    pending_files = dialog_manager.dialog_data.pop("pending_files", [])
+    if pending_files:
+        print(f"Очищено {len(pending_files)} неотправленных файлов")
 
     await callback.answer("❌ Создание задачи отменено")
     await dialog_manager.done()
@@ -642,7 +716,50 @@ def parse_datetime(date_str: str) -> datetime:
         return dt.replace(hour=0, minute=0)
 
 
+async def on_view_task_files(c, b, dialog_manager: DialogManager):
+    """Handle viewing task files"""
+
+    from aiogram_dialog.api.entities import ShowMode
+
+    task_id = dialog_manager.start_data.get("task_id")
+    if not task_id:
+        await c.answer("❌ Ошибка: задача не найдена")
+        return
+
+    files = await files_service.get_task_files(task_id)
+
+    if not files:
+        await c.answer("ℹ️ Файлы не найдены")
+        return
+
+    albume_docs = []
+    albume_photos = []
+    for file in files:
+        file_type = file.get("type", "document")
+        file_name = file.get("filename", "file")
+        file_id = file.get("file_id")
+
+        print("fn: ", file_name, file_type, file_id)
+
+        if file_type == "photo":
+            albume_photos.append(InputMediaPhoto(
+                media=file_id, caption=file_name))
+            # await c.message.answer_photo(photo=file_id, caption=file_name)
+        else:
+            albume_docs.append(InputMediaDocument(
+                media=file_id, caption=file_name))
+            # await c.message.answer_document(document=file_id, caption=file_name)
+    # print("alb", albume)
+    if albume_photos:
+        await c.bot.send_media_group(c.message.chat.id, media=albume_photos)
+    if albume_docs:
+        await c.bot.send_media_group(c.message.chat.id, media=albume_docs)
+
+    await dialog_manager.switch_to(TaskStates.DETAIL, show_mode=ShowMode.SEND)
+    # await dialog_manager.show(show_mode=ShowMode.SEND)
+
 # ============ SORT HANDLERS ============
+
 
 async def on_sort_by_start_date(
     callback: CallbackQuery,

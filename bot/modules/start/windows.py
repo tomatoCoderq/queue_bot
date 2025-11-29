@@ -26,10 +26,10 @@ def create_dialogs():
 
     # Window 2: Role Choice
     role_choice_window = Window(
-        Const("Выберите вашу роль:\n\n"
-              "👤 Student - Студент (может просматривать свои задачи)\n"
-              "👨‍👩‍👧 Parent - Родитель (в разработке)\n"
-              "⚙️ Operator - Оператор (может управлять задачами студентов)"),
+        Const("<b>Выберите вашу роль:</b>\n\n"
+              "👤 <b>Student</b> - Студент (может просматривать свои задачи)\n"
+              "👨‍👩‍👧 <b>Parent</b> - Родитель (<i>в разработке</i>)\n"
+              "⚙️ <b>Operator</b> - Оператор (может управлять задачами студентов)"),
         Row(
             Button(
                 Const("👤 Студент"),
@@ -51,7 +51,7 @@ def create_dialogs():
     )
 
     first_name_window = Window(
-        Const("Введите ваше имя:"),
+        Const("<b>Введите ваше имя:</b>"),
         TextInput(
             id="first_name_input",
             type_factory=str,
@@ -62,7 +62,7 @@ def create_dialogs():
 
     # Window 4: Last Name Input
     last_name_window = Window(
-        Const("Введите вашу фамилию:"),
+        Const("<b>Введите вашу фамилию:</b>"),
         TextInput(
             id="last_name_input",
             type_factory=str,
@@ -74,11 +74,11 @@ def create_dialogs():
     # Window 5: Confirm Registration
     confirm_window = Window(
         Format(
-            "✅ Проверьте ваши данные:\n\n"
-            "Роль: {dialog_data[role]}\n"
-            "Имя: {dialog_data[first_name]}\n"
-            "Фамилия: {dialog_data[last_name]}\n"
-            "Username: {dialog_data[username]}\n\n"
+            "✅ <b>Проверьте ваши данные:</b>\n\n"
+            "<b>Роль:</b> {dialog_data[role]}\n"
+            "<b>Имя:</b> {dialog_data[first_name]}\n"
+            "<b>Фамилия:</b> {dialog_data[last_name]}\n"
+            "<b>Username:</b> {dialog_data[username]}\n\n"
             "Все верно?"
         ),
         Row(
@@ -98,9 +98,9 @@ def create_dialogs():
 
     # Window 6: Success Message
     success_window = Window(
-        Const("Поздравляем с регистрацией!\n\n"
-              "Вы успешно зарегистрированы в системе.\n"
-              "Нажмите /start чтобы войти в профиль."),
+        Const("🎉 <b>Поздравляем с регистрацией!</b>\n\n"
+              "✅ Вы успешно зарегистрированы в системе.\n"
+              "✨ Нажмите <code>/start</code> чтобы войти в профиль."),
         # getter=on_success_complete,
         state=RegistrationStates.SUCCESS,
     )
@@ -108,10 +108,10 @@ def create_dialogs():
 
     profile_window = Window(
         Format(
-            "👤 Ваш профиль\n\n"
-            "Имя: {first_name} {last_name}\n"
-            "Роль: {role_display}\n"
-            "Username: {username}\n\n"
+            "👤 <b>Ваш профиль</b>\n\n"
+            "<b>Имя:</b> {first_name} {last_name}\n"
+            "<b>Роль:</b> {role_display}\n"
+            "<b>Username:</b> {username}\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
         ),
         Group(

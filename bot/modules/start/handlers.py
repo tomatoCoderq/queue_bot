@@ -8,6 +8,7 @@ from aiogram.types import CallbackQuery, Message
 from bot.modules.states import ClientGroupsStates, OperatorTaskStates, RegistrationStates, ProfileStates
 
 from bot.modules.users import service as user_service
+from bot.modules.groups import service as group_service
 
 router = Router()
 
@@ -215,11 +216,15 @@ async def on_groups_tasks(callback: CallbackQuery,
     role = user.get("role", "").lower()
 
     if role == "student":
-        await dialog_manager.start(
-            ClientGroupsStates.GROUP_INFO,
-            mode=StartMode.NORMAL,
-            data={"telegram_id": telegram_id}
-        )
+        group_id = await group_service.get_client_group(telegram_id)
+        if group_id is None:
+            await callback.answer("Вы не в группе")
+        else:    
+            await dialog_manager.start(
+                ClientGroupsStates.GROUP_INFO,
+                mode=StartMode.NORMAL,
+                data={"telegram_id": telegram_id}
+            )
 
     if role == "operator":
         await dialog_manager.start(

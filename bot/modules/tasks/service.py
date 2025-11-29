@@ -4,7 +4,6 @@ from src.config import settings
 
 from src.modules.tasks.schemes import *
 
-
 async def get_task_by_id(task_id: str) -> Optional[Dict[str, Any]]:
     """Get specific task details by task_id"""
     async with httpx.AsyncClient(timeout=10) as client:
@@ -25,14 +24,14 @@ async def create_task_and_assign(
 ) -> Optional[Dict[str, Any]]:
     """
     Create a new task and immediately assign it to a student.
-
+    
     Args:
         title: Task title
         description: Task description
         start_date: Start date in YYYY-MM-DD format
         due_date: Due date in YYYY-MM-DD format (optional)
         student_telegram_id: Telegram ID of the student
-
+    
     Returns:
         Created and assigned task, or None if failed
     """
@@ -48,47 +47,47 @@ async def create_task_and_assign(
         except Exception as e:
             print(f"Error creating task data: {e}")
             return None
-
+         
         create_response = await client.post(
             f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/",
             json=task_data.model_dump(exclude_none=True)
         )
         create_response.raise_for_status()
         created_task = create_response.json()
-
+        
         task_id = created_task.get("id")
         if not task_id:
             return None
-
+        
         # Step 2: Get user_id (UUID) from telegram_id
         user_response = await client.get(
             f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/users/{student_telegram_id}"
         )
         user_response.raise_for_status()
         user = user_response.json()
-
+        
         user_id = user.get("id")
         if not user_id:
             return None
-
+        
         # Step 3: Assign task to student
         assign_response = await client.post(
             f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/{task_id}/assign/{user_id}"
         )
         assign_response.raise_for_status()
         assigned_task = assign_response.json()
-
+        
         return assigned_task
 
 
 async def submit_task_result(task_id: str, result: str) -> bool:
     """
     Submit task result for review
-
+    
     Args:
         task_id: ID of the task to submit
         result: Result text from student
-
+    
     Returns:
         True if successful, False otherwise
     """
@@ -108,10 +107,10 @@ async def submit_task_result(task_id: str, result: str) -> bool:
 async def approve_task(task_id: str) -> bool:
     """
     Approve task completion
-
+    
     Args:
         task_id: ID of the task to approve
-
+    
     Returns:
         True if successful, False otherwise
     """
@@ -130,11 +129,11 @@ async def approve_task(task_id: str) -> bool:
 async def reject_task(task_id: str, rejection_comment: str) -> bool:
     """
     Reject task with comment
-
+    
     Args:
         task_id: ID of the task to reject
         rejection_comment: Comment explaining why task was rejected
-
+    
     Returns:
         True if successful, False otherwise
     """
@@ -175,7 +174,7 @@ async def get_overdue_tasks() -> List[Dict[str, Any]]:
         response.raise_for_status()
         tasks = response.json()
         return tasks if tasks else []
-
+    
 
 # TODO: check whether system can be simpflified to one without this endpoint
 async def mark_task_as_overdue(task_id: str) -> bool:
@@ -224,31 +223,30 @@ async def create_and_add_task_group(
         except Exception as e:
             print(f"Error creating task data: {e}")
             return None
-
+         
         create_response = await client.post(
             f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/",
             json=task_data.model_dump(exclude_none=True)
         )
         create_response.raise_for_status()
         created_task = create_response.json()
-
+        
         task_id = created_task.get("id")
         if not task_id:
             return None
-
+        
         assign_response = await client.post(
             f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/{task_id}/assign_group/{group_id}"
         )
-
+        
         assign_response.raise_for_status()
         # assigned_task = assign_response.json()
         assigned_task = create_response.json()
-
+        
         print("ass", assigned_task)
-
+        
         return assigned_task
-
-
+    
 async def delete_task(task_id: str):
     try:
         async with httpx.AsyncClient(timeout=10) as client:

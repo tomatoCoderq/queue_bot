@@ -22,6 +22,7 @@ class OperatorStudentsStates(StatesGroup):
 class OperatorTaskStates(StatesGroup):
     LIST_TASKS = State()
     DETAIL = State()
+    TASK_FILES = State()
     SUBMIT_RESULT = State()
     REVIEW_DETAIL = State()
     REJECT_COMMENT = State()
@@ -47,6 +48,8 @@ class OperatorTaskCreateStates(StatesGroup):
     CREATE_TASK_DESCRIPTION = State()
     CREATE_TASK_START_DATE = State()
     CREATE_TASK_DUE_DATE = State()
+    CREATE_TASK_WAIT_PHOTOS = State()
+    CREATE_TASK_ADD_PHOTO = State()
     CREATE_TASK_CONFIRM = State()
 
 

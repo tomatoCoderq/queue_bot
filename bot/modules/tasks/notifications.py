@@ -1,4 +1,5 @@
 import logging
+from html import escape
 from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
 
@@ -31,8 +32,8 @@ async def send_overdue_notification(
         
         message = (
             f"⚠️ <b>Задача просрочена!</b>\n\n"
-            f"📌 Задача: <b>{task_title}</b>\n"
-            f"⏰ Дедлайн был: {due_date}\n\n"
+            f"📌 Задача: <b>{escape(task_title)}</b>\n"
+            f"⏰ Дедлайн был: {escape(due_date)}\n\n"
             f"🚨 Пожалуйста, завершите задачу как можно скорее!"
         )
         
@@ -99,7 +100,7 @@ async def send_deadline_notification(
         
         message = (
             f"{emoji} <b>Напоминание о дедлайне!</b>\n\n"
-            f"📌 Задача: <b>{task_title}</b>\n"
+            f"📌 Задача: <b>{escape(task_title)}</b>\n"
             f"⏱ Осталось: <b>{minutes_left} мин</b>\n\n"
         )
         
@@ -143,7 +144,7 @@ async def send_task_approved_notification(
         
         message = (
             f"✅ <b>Задача одобрена!</b>\n\n"
-            f"📌 Задача: <b>{task_title}</b>\n\n"
+            f"📌 Задача: <b>{escape(task_title)}</b>\n\n"
             f"🎉 Поздравляем! Преподаватель одобрил вашу работу."
         )
         
@@ -175,9 +176,9 @@ async def send_task_rejected_notification(
         
         message = (
             f"❌ <b>Задача отклонена</b>\n\n"
-            f"📌 Задача: <b>{task_title}</b>\n\n"
-            f"💬 <b>Комментарий преподавателя:</b>\n{rejection_comment}\n\n"
-            f"⏰ <b>Новый дедлайн:</b> {new_deadline}\n"
+            f"📌 Задача: <b>{escape(task_title)}</b>\n\n"
+            f"💬 <b>Комментарий преподавателя:</b>\n{escape(rejection_comment)}\n\n"
+            f"⏰ <b>Новый дедлайн:</b> {escape(new_deadline)}\n"
             f"(Продлен на 1 час)\n\n"
             f"📝 Пожалуйста, исправьте и отправьте работу снова."
         )
@@ -209,8 +210,8 @@ async def send_task_submitted_notification(
         
         message = (
             f"📝 <b>Новая задача на проверке</b>\n\n"
-            f"👤 Студент: <b>{student_name}</b>\n"
-            f"📌 Задача: <b>{task_title}</b>\n\n"
+            f"👤 Студент: <b>{escape(student_name)}</b>\n"
+            f"📌 Задача: <b>{escape(task_title)}</b>\n\n"
             f"Студент отправил работу на проверку."
         )
         

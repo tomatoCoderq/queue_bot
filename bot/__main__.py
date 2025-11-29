@@ -27,7 +27,7 @@ dp = Dispatcher()
 async def main():
     print("Starting bot...")
 
-    bot = Bot(token=settings.telegram.TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
+    bot = Bot(token=settings.telegram.TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
     
     # Include routers

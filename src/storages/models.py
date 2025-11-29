@@ -145,3 +145,21 @@ class Task(SQLModel, table=True):
             raise ValueError("start_date must be earlier than due_date")
 
         return self
+
+
+class StoredFiles(SQLModel, table=True):
+    __tablename__ = "stored_files"  # type: ignore
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    filename: str = Field(description="Original name of the file")
+    type: str = Field(description="Type of the file: photo, document, etc.")
+    file_id: str = Field(
+        description="File identifier from Telegram API")
+    task_id: UUID = Field(foreign_key="tasks.id",
+                          description="ID of the task the file is associated with")
+    uploaded_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Timestamp when the file was uploaded"
+    )
+    path: str = Field(description="Path where the file is stored locally or in cloud storage")
+    
