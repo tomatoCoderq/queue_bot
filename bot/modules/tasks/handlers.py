@@ -1,9 +1,10 @@
+import html
 from aiogram import Router
 from aiogram.types import CallbackQuery, Message, InputMediaDocument, InputMediaPhoto
 from aiogram_dialog import DialogManager
 from aiogram_dialog.widgets.kbd import Button, Select
 from aiogram_dialog.widgets.input import ManagedTextInput, MessageInput
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 
 from typing import Dict, Any
 from html import escape
@@ -358,10 +359,12 @@ async def on_start_date_now(
     """Установить время начала - сейчас"""
     from bot.modules.states import OperatorTaskCreateStates
 
-    now = datetime.now()
-    start_date = (now + timedelta(seconds=60)).strftime("%Y-%m-%d %H:%M")
+    now = datetime.now(timezone.utc)
+    # dialog_manager.dialog_data["task_start_date_raw"] = now
 
+    start_date = (now + timedelta(seconds=60)).strftime("%Y-%m-%d %H:%M")
     dialog_manager.dialog_data["task_start_date"] = start_date
+    
     await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_DUE_DATE)
     await callback.answer(f"⏰ Время начала: {start_date}")
 
@@ -387,7 +390,9 @@ async def on_task_due_date_input(
             await message.answer("❌ Дедлайн должен быть позже даты начала")
             return
 
-    dialog_manager.dialog_data["task_due_date"] = data
+    due_dt = parse_datetime(data) - timedelta(hours=3)
+
+    dialog_manager.dialog_data["task_due_date"] = due_dt.strftime("%Y-%m-%d %H:%M")
     from bot.modules.states import OperatorTaskCreateStates
     await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_WAIT_PHOTOS)
 
@@ -534,6 +539,13 @@ async def on_proceed_all_files_added(
 
     # Просто переходим к подтверждению, файлы загрузим при создании задачи с task_id
     await dialog_manager.switch_to(OperatorTaskCreateStates.CREATE_TASK_CONFIRM)
+    
+    parsed_start_date = parse_datetime(dialog_manager.dialog_data["task_start_date"])
+    dialog_manager.dialog_data["show_start_date"] = (parsed_start_date + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M")
+    
+    parsed_due_date = parse_datetime(dialog_manager.dialog_data["task_due_date"])
+    dialog_manager.dialog_data["show_due_date"] = (parsed_due_date + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M")
+    
     await callback.answer("➡️ Переход к подтверждению задачи")
 
 
@@ -548,8 +560,7 @@ async def get_files_data(dialog_manager: DialogManager, **kwargs):
         for i, file in enumerate(pending_files, 1):
             file_type_emoji = "🖼️" if file["type"] == "photo" else "📄"
             # Экранируем HTML-символы в именах файлах
-            safe_name = file["name"].replace("&", "&amp;").replace(
-                "<", "&lt;").replace(">", "&gt;")
+            safe_name = html.escape(file["name"])
             files_list.append(f"{i}. {file_type_emoji} {safe_name}")
         files_info = "\n".join(files_list)
 
@@ -571,7 +582,7 @@ async def on_confirm_create_task(
     title = dialog_manager.dialog_data.get("task_title", "")
     description = dialog_manager.dialog_data.get("task_description", "")
     start_date = dialog_manager.dialog_data.get("task_start_date", "")
-    due_date = dialog_manager.dialog_data.get("task_due_date", "Не указано")
+    due_date = dialog_manager.dialog_data.get("task_due_date", "")
 
     print("start_date:", start_date)
 
@@ -605,16 +616,17 @@ async def on_confirm_create_task(
             title=title,
             description=description,
             start_date=start_date,
-            due_date=due_date if due_date != "Не указано" else None,
+            due_date=due_date,
         )
         print("here", task)
 
     if current_context == "student_by_operator":
+        print("give:", start_date, due_date, type(start_date), type(due_date))
         task = await create_task_and_assign(
             title=title,
             description=description,
             start_date=start_date,
-            due_date=due_date if due_date != "Не указано" else None,
+            due_date=due_date,
             student_telegram_id=obj_id,
         )
 

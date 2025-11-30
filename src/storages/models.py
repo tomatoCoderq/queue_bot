@@ -117,18 +117,14 @@ class Task(SQLModel, table=True):
     def adjust_start_date(cls, v, info):
         if v is None:
             return v
-        start_date_moscow = v.astimezone(ZoneInfo("Europe/Moscow"))
-        new_time = start_date_moscow - timedelta(hours=3)  # Adjusting to UTC
-        return new_time.replace(tzinfo=timezone.utc)
+        return v.replace(tzinfo=timezone.utc)
 
     @field_validator("due_date", mode="after")
     @classmethod
     def adjust_due_date(cls, v, info):
         if v is None:
             return v
-        due_date_moscow = v.astimezone(ZoneInfo("Europe/Moscow"))
-        new_time = due_date_moscow - timedelta(hours=3)
-        return new_time.replace(tzinfo=timezone.utc)
+        return v.replace(tzinfo=timezone.utc)
 
     @model_validator(mode="after")
     def validate_dates(self):
@@ -143,6 +139,7 @@ class Task(SQLModel, table=True):
 
         if self.start_date >= self.due_date:
             raise ValueError("start_date must be earlier than due_date")
+        print("ERROR", self.start_date, self.created_at, self.due_date)
 
         return self
 
