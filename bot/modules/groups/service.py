@@ -1,5 +1,6 @@
 import httpx
 from typing import Optional, List, Dict, Any
+from loguru import logger
 from src.config import settings
 
 from src.modules.tasks.schemes import *
@@ -51,7 +52,7 @@ async def get_group_by_name(name: str):
         return None
 
 async def add_student_to_group(group_id: str, student_id: str) -> bool:
-    print(group_id, student_id)
+    logger.debug(f"Adding student {student_id} to group {group_id}")
     async with httpx.AsyncClient(timeout=10) as client:
         url = f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/groups/{group_id}/student/{student_id}?by_telegram_id=True"
         

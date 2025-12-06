@@ -25,7 +25,6 @@ def create_user_dialogs():
         Format(
             "👥 <b>Список студентов</b>\n\n"
             "📊 Всего студентов: {total_students}\n"
-            "📄 Страница {current_page} из {total_pages}\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
         ),
         ScrollingGroup(
@@ -38,13 +37,8 @@ def create_user_dialogs():
             ),
             id="students_scroll",
             width=1,
-            height=5,  # Max 5 students per page
+            height=5,
         ),
-        # Button(
-        #     Const("🔙 В профиль"),
-        #     id="back_to_profile",
-        #     on_click=on_back_to_profile,
-        # ),
         Cancel(Const("🔙 В профиль")),
         getter=get_operator_students_data,
         state=OperatorStudentsStates.STUDENTS_LIST,

@@ -1,5 +1,6 @@
 from aiogram import Bot, Dispatcher
 from aiogram_dialog import setup_dialogs
+from bot.logs import setup_bot_logger
 from src.config import settings
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -15,17 +16,17 @@ from bot.modules.tasks.windows import create_task_dialogs
 from bot.modules.groups.windows import create_group_dialogs
 from bot.modules.users.windows import create_user_dialogs
 # from bot.modules.groups.windows import create_group_dialogs
+from loguru import logger
 
 from bot.scheduler import setup_scheduler, shutdown_scheduler
 
 
 dp = Dispatcher()
 
-
-# TODO: migrate from direct sql quaries to orm
-
 async def main():
-    print("Starting bot...")
+    setup_bot_logger()
+        
+    logger.info("Starting bot...")
 
     bot = Bot(token=settings.telegram.TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
@@ -63,17 +64,6 @@ async def main():
     # Setup scheduler
     await setup_scheduler()
 
-    # Routers from all handlers
-    # dp.include_router(client_details.router)
-    # dp.include_router(operator_details.teacher_router)
-    # dp.include_router(start.router)
-    # dp.include_router(back_routes.router)
-    # dp.include_router(test_handlers.router)
-    # dp.include_router(client_equipment.router)
-    # dp.include_router(operator_equipment.router)
-    # dp.include_router(operator_students_cards.router)
-
-    # await bot.delete_webhook()
     try:
         await dp.start_polling(bot)
     finally:

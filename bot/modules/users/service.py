@@ -9,12 +9,12 @@ async def get_user(telegram_id: int) -> Optional[Dict[str, Any]]:
         # Get all users and find by telegram_id
         response = await client.get(f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/users/{telegram_id}")
         if response.status_code == 404:
-            print("User not found:", telegram_id)
+            logger.warning(f"User not found: {telegram_id}")
             return None
         
         user = response.json()
         if user:
-            print("Fetched user:", user)
+            logger.info(f"Fetched user: {user.get('id')}")
             return user
         
     return None
@@ -25,12 +25,12 @@ async def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     async with httpx.AsyncClient(timeout=10) as client:
         response = await client.get(f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/users/{user_id}")
         if response.status_code == 404:
-            print("User not found:", user_id)
+            logger.warning(f"User not found: {user_id}")
             return None
         
         user = response.json()
         if user:
-            print("Fetched user:", user)
+            logger.info(f"Fetched user: {user.get('id')}")
             return user
         
     return None
@@ -54,7 +54,6 @@ async def create_user(
     )
     
     async with httpx.AsyncClient(timeout=10) as client:
-        # print(user_create)
         response = await client.post(
             f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/users/",
             json=user_create.model_dump()
@@ -75,16 +74,7 @@ async def get_student_tasks(
     telegram_id: int, 
     sort_by: Optional[str] = None
 ) -> List[Dict[str, Any]]:
-    """
-    Get all tasks for a specific student by telegram_id
-    
-    Args:
-        telegram_id: Telegram ID of the student
-        sort_by: Sort type - 'start_time', 'end_time', 'status', or None
-    
-    Returns:
-        List of tasks
-    """
+    """Get all tasks for a student by telegram_id"""
     async with httpx.AsyncClient(timeout=10) as client:
         url = f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/users/{telegram_id}/tasks"
         
@@ -100,7 +90,7 @@ async def get_student_tasks(
 
 
 async def get_task_by_id(task_id: str) -> Optional[Dict[str, Any]]:
-    """Get specific task details by task_id"""
+    """Get task details by task_id"""
     async with httpx.AsyncClient(timeout=10) as client:
         response = await client.get(
             f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/{task_id}"
@@ -120,6 +110,7 @@ async def get_all_students() -> List[Dict[str, Any]]:
         users = response.json()
         
         # Filter only students
+        
         students = [user for user in users if user.get("role", "").lower() == "student"]
         return students
 
@@ -131,19 +122,7 @@ async def create_task_and_assign(
     due_date: Optional[str],
     student_telegram_id: int
 ) -> Optional[Dict[str, Any]]:
-    """
-    Create a new task and immediately assign it to a student.
-    
-    Args:
-        title: Task title
-        description: Task description
-        start_date: Start date in YYYY-MM-DD format
-        due_date: Due date in YYYY-MM-DD format (optional)
-        student_telegram_id: Telegram ID of the student
-    
-    Returns:
-        Created and assigned task, or None if failed
-    """
+    """Create task and assign to student"""
     async with httpx.AsyncClient(timeout=10) as client:
         # Step 1: Create task
         # task_data = {
@@ -157,7 +136,7 @@ async def create_task_and_assign(
         # due_dt = None
         # if due_date and due_date != "Не указано":
         #     due_dt = datetime.strptime(due_date, "%Y-%m-%d %H:%M")
-        print("Start and end dates:", start_date, due_date)
+        logger.debug(f"Start and end dates: {start_date}, {due_date}")
         try:
             task_data = TaskCreateRequest(
                 title=title,
@@ -166,7 +145,7 @@ async def create_task_and_assign(
                 due_date=due_date
             )
         except Exception as e:
-            print(f"Error creating task data: {e}")
+            logger.error(f"Error creating task data: {e}")
             return None
          
         create_response = await client.post(
@@ -202,16 +181,7 @@ async def create_task_and_assign(
 
 
 async def submit_task_result(task_id: str, result: str) -> bool:
-    """
-    Submit task result for review
-    
-    Args:
-        task_id: ID of the task to submit
-        result: Result text from student
-    
-    Returns:
-        True if successful, False otherwise
-    """
+    """Submit task result for review"""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.post(
@@ -221,20 +191,12 @@ async def submit_task_result(task_id: str, result: str) -> bool:
             response.raise_for_status()
             return True
     except Exception as e:
-        print(f"Error submitting task: {e}")
+        logger.error(f"Error submitting task: {e}")
         return False
 
 
 async def approve_task(task_id: str) -> bool:
-    """
-    Approve task completion
-    
-    Args:
-        task_id: ID of the task to approve
-    
-    Returns:
-        True if successful, False otherwise
-    """
+    """Approve task completion"""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.post(
@@ -243,21 +205,12 @@ async def approve_task(task_id: str) -> bool:
             response.raise_for_status()
             return True
     except Exception as e:
-        print(f"Error approving task: {e}")
+        logger.error(f"Error approving task: {e}")
         return False
 
 
 async def reject_task(task_id: str, rejection_comment: str) -> bool:
-    """
-    Reject task with comment
-    
-    Args:
-        task_id: ID of the task to reject
-        rejection_comment: Comment explaining why task was rejected
-    
-    Returns:
-        True if successful, False otherwise
-    """
+    """Reject task with comment"""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.post(
@@ -267,12 +220,12 @@ async def reject_task(task_id: str, rejection_comment: str) -> bool:
             response.raise_for_status()
             return True
     except Exception as e:
-        print(f"Error rejecting task: {e}")
+        logger.error(f"Error rejecting task: {e}")
         return False
 
 
 async def get_submitted_tasks() -> List[Dict[str, Any]]:
-    """Get all tasks with status 'submitted' for review"""
+    """Get all tasks with status 'submitted'"""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.get(
@@ -282,12 +235,12 @@ async def get_submitted_tasks() -> List[Dict[str, Any]]:
             tasks = response.json()
             return tasks if tasks else []
     except Exception as e:
-        print(f"Error getting submitted tasks: {e}")
+        logger.error(f"Error getting submitted tasks: {e}")
         return []
 
 
 async def get_overdue_tasks() -> List[Dict[str, Any]]:
-    """Get all tasks that are overdue but not marked as overdue yet"""
+    """Get all overdue tasks"""
     async with httpx.AsyncClient(timeout=10) as client:
         response = await client.get(
             f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/overdue"
@@ -308,12 +261,12 @@ async def mark_task_as_overdue(task_id: str) -> bool:
             response.raise_for_status()
             return True
     except Exception as e:
-        print(f"Error marking task as overdue: {e}")
+        logger.error(f"Error marking task as overdue: {e}")
         return False
 
 
 async def mark_overdue_notification_sent(task_id: str) -> bool:
-    """Mark that overdue notification was sent"""
+    """Mark overdue notification as sent"""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.post(
@@ -322,5 +275,5 @@ async def mark_overdue_notification_sent(task_id: str) -> bool:
             response.raise_for_status()
             return True
     except Exception as e:
-        print(f"Error marking overdue notification: {e}")
+        logger.error(f"Error marking overdue notification: {e}")
         return False

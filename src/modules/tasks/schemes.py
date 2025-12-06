@@ -13,31 +13,31 @@ class TaskCreateRequest(SQLModel):
     start_date: str = Field(default_factory=datetime.utcnow,description="Start date for the task")
     due_date: Optional[str] = Field(default=None, description="Due date for the task in YYYY-MM-DD format")
 
-    @field_validator("start_date", mode="before")
-    def parse_start_date(cls, value):
-        if value < datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"):
-            print("ValueError raised in parse_start_date")
-            raise ValueError("start_date must not be earlier than current time")
-        return value
+    # @field_validator("start_date", mode="before")
+    # def parse_start_date(cls, value):
+    #     if value < datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"):
+    #         print("ValueError raised in parse_start_date")
+    #         raise ValueError("start_date must not be earlier than current time")
+    #     return value
 
-    @field_validator("due_date", mode="before")
-    def parse_due_date(cls, value):
-        if value < datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"):
-            raise ValueError("due_date must not be earlier than current time")
-        return value
+    # @field_validator("due_date", mode="before")
+    # def parse_due_date(cls, value):
+    #     if value < datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"):
+    #         raise ValueError("due_date must not be earlier than current time")
+    #     return value
 
-    @model_validator(mode="after")
-    def validate_dates(self):
-        if self.start_date is None or self.due_date is None:
-            return self
+    # @model_validator(mode="after")
+    # def validate_dates(self):
+    #     if self.start_date is None or self.due_date is None:
+    #         return self
         
-        start = datetime.strptime(self.start_date, "%Y-%m-%d %H:%M") # type: ignore
-        due = datetime.strptime(self.due_date, "%Y-%m-%d %H:%M") # type: ignore
+    #     start = datetime.strptime(self.start_date, "%Y-%m-%d %H:%M") # type: ignore
+    #     due = datetime.strptime(self.due_date, "%Y-%m-%d %H:%M") # type: ignore
 
-        if start >= due:
-            raise ValueError("start_date must be earlier than due_date")
+    #     if start >= due:
+    #         raise ValueError("start_date must be earlier than due_date")
         
-        return self
+    #     return self
 
 class TaskCreateResponse(SQLModel):
     id: UUID = Field(description="Unique identifier for the task")

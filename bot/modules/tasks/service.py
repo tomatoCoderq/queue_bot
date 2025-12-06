@@ -1,5 +1,6 @@
 import httpx
 from typing import Optional, List, Dict, Any
+from loguru import logger
 from src.config import settings
 
 from src.modules.tasks.schemes import *
@@ -22,21 +23,9 @@ async def create_task_and_assign(
     due_date: Optional[str],
     student_telegram_id: int
 ) -> Optional[Dict[str, Any]]:
-    """
-    Create a new task and immediately assign it to a student.
-    
-    Args:
-        title: Task title
-        description: Task description
-        start_date: Start date in YYYY-MM-DD format
-        due_date: Due date in YYYY-MM-DD format (optional)
-        student_telegram_id: Telegram ID of the student
-    
-    Returns:
-        Created and assigned task, or None if failed
-    """
+    """Create a new task and immediately assign it to a student"""
     async with httpx.AsyncClient(timeout=10) as client:
-        print("Start and end dates:", start_date, due_date)
+        logger.debug(f"Start and end dates: {start_date}, {due_date}")
         try:
             task_data = TaskCreateRequest(
                 title=title,
@@ -45,13 +34,18 @@ async def create_task_and_assign(
                 due_date=due_date
             )
         except Exception as e:
-            print(f"Error creating task data: {e}")
+            logger.error(f"Error creating task data: {e}")
             return None
          
         create_response = await client.post(
             f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/tasks/",
             json=task_data.model_dump(exclude_none=True)
         )
+        
+        if create_response.status_code != 201:
+            logger.error(f"Failed to create task: {create_response.status_code} - {create_response.text}")
+            return None
+        
         create_response.raise_for_status()
         created_task = create_response.json()
         
@@ -63,6 +57,11 @@ async def create_task_and_assign(
         user_response = await client.get(
             f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/users/{student_telegram_id}"
         )
+        
+        if user_response.status_code != 200:
+            logger.error(f"Failed to get user by telegram ID: {user_response.status_code} - {user_response.text}")
+            return None
+        
         user_response.raise_for_status()
         user = user_response.json()
         
@@ -81,16 +80,7 @@ async def create_task_and_assign(
 
 
 async def submit_task_result(task_id: str, result: str) -> bool:
-    """
-    Submit task result for review
-    
-    Args:
-        task_id: ID of the task to submit
-        result: Result text from student
-    
-    Returns:
-        True if successful, False otherwise
-    """
+    """Submit task result for review by operator"""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.post(
@@ -100,20 +90,12 @@ async def submit_task_result(task_id: str, result: str) -> bool:
             response.raise_for_status()
             return True
     except Exception as e:
-        print(f"Error submitting task: {e}")
+        logger.error(f"Error submitting task: {e}")
         return False
 
 
 async def approve_task(task_id: str) -> bool:
-    """
-    Approve task completion
-    
-    Args:
-        task_id: ID of the task to approve
-    
-    Returns:
-        True if successful, False otherwise
-    """
+    """Approve task completion by operator"""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.post(
@@ -122,21 +104,12 @@ async def approve_task(task_id: str) -> bool:
             response.raise_for_status()
             return True
     except Exception as e:
-        print(f"Error approving task: {e}")
+        logger.error(f"Error approving task: {e}")
         return False
 
 
 async def reject_task(task_id: str, rejection_comment: str) -> bool:
-    """
-    Reject task with comment
-    
-    Args:
-        task_id: ID of the task to reject
-        rejection_comment: Comment explaining why task was rejected
-    
-    Returns:
-        True if successful, False otherwise
-    """
+    """Reject task with comment"""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.post(
@@ -146,7 +119,7 @@ async def reject_task(task_id: str, rejection_comment: str) -> bool:
             response.raise_for_status()
             return True
     except Exception as e:
-        print(f"Error rejecting task: {e}")
+        logger.error(f"Error rejecting task: {e}")
         return False
 
 
@@ -161,7 +134,7 @@ async def get_submitted_tasks() -> List[Dict[str, Any]]:
             tasks = response.json()
             return tasks if tasks else []
     except Exception as e:
-        print(f"Error getting submitted tasks: {e}")
+        logger.error(f"Error getting submitted tasks: {e}")
         return []
 
 
@@ -187,7 +160,7 @@ async def mark_task_as_overdue(task_id: str) -> bool:
             response.raise_for_status()
             return True
     except Exception as e:
-        print(f"Error marking task as overdue: {e}")
+        logger.error(f"Error marking task as overdue: {e}")
         return False
 
 
@@ -201,7 +174,7 @@ async def mark_overdue_notification_sent(task_id: str) -> bool:
             response.raise_for_status()
             return True
     except Exception as e:
-        print(f"Error marking overdue notification: {e}")
+        logger.error(f"Error marking overdue notification: {e}")
         return False
 
 
@@ -221,7 +194,7 @@ async def create_and_add_task_group(
                 due_date=due_date
             )
         except Exception as e:
-            print(f"Error creating task data: {e}")
+            logger.error(f"Error creating task data: {e}")
             return None
          
         create_response = await client.post(
@@ -243,7 +216,7 @@ async def create_and_add_task_group(
         # assigned_task = assign_response.json()
         assigned_task = create_response.json()
         
-        print("ass", assigned_task)
+        logger.debug(f"Assigned task: {assigned_task}")
         
         return assigned_task
     

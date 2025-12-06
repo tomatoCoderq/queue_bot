@@ -4,6 +4,7 @@ from aiogram_dialog import DialogManager, StartMode
 from aiogram_dialog.widgets.kbd import Button, Select
 from aiogram_dialog.widgets.input import ManagedTextInput
 from typing import Dict, Any
+from loguru import logger
 
 
 from bot.modules.groups import service
@@ -37,13 +38,6 @@ async def get_all_groups_data(
         "has_next": end_index < total_groups,
     }
 
-
-# async def get_groups(dialog_manager: DialogManager):
-#     group_id = dialog_manager.dialog_data.get("selected_group")
-#     group_name = dialog_manager.dialog_data.get("selected_group_name")
-
-#     dialog_manager.dialog_data['group_name'] = group_name
-
 async def on_group_tasks_clicked(c, b, m: DialogManager):
     await m.start(
         TaskStates.LIST_TASKS,
@@ -54,7 +48,7 @@ async def on_group_tasks_clicked(c, b, m: DialogManager):
     )
 
 async def on_group_tasks_clicked_client(c, b, m: DialogManager):
-    print(m.dialog_data, m.start_data)
+    logger.info(f"Dialog data: {m.dialog_data}, Start data: {m.start_data}")
     group_id = await service.get_client_group(m.start_data.get("telegram_id"))
     
     group = await service.get_group_by_id(group_id)
@@ -82,7 +76,7 @@ async def on_add_specific_user(callback: CallbackQuery,
                           dialog_manager: DialogManager,
                           item_id: str,
                           ):
-    print(dialog_manager.dialog_data, dialog_manager.start_data)
+    
     group = dialog_manager.dialog_data.get("selected_group")
     if not group:
         await callback.answer("❌ Группа не найдена")
@@ -99,7 +93,7 @@ async def on_remove_specific_user(callback: CallbackQuery,
                           dialog_manager: DialogManager,
                           item_id: str,
                           ):
-    print(dialog_manager.dialog_data, dialog_manager.start_data)
+    logger.debug(f"Dialog data: {dialog_manager.dialog_data}, Start data: {dialog_manager.start_data}")
     group = dialog_manager.dialog_data.get("selected_group")
     if not group:
         await callback.answer("❌ Группа не найдена")
@@ -123,7 +117,7 @@ async def getter_group_clients(dialog_manager: DialogManager, **kwargs):
 
     clients = await service.get_group_clients(group_id)
 
-    print("Clients: ", clients)
+    logger.debug(f"Clients: {clients}")
     
     lines = []
     for i, c in enumerate(clients):
@@ -137,7 +131,7 @@ async def getter_group_clients_for_removal(dialog_manager: DialogManager, **kwar
     group_id = dialog_manager.dialog_data["selected_group"]["id"]
     clients = await service.get_group_clients(group_id)
     
-    print("Clients for removal: ", clients)
+    logger.debug(f"Clients for removal: {clients}")
     
     # Return in format suitable for Select widget
     return {"clients_page": clients} 
@@ -152,7 +146,7 @@ async def on_group_select(callback: CallbackQuery,
     groups = await service.get_all_groups()
     selected_group = next((g for g in groups if g["name"] == item_id), None)
 
-    print("f: ", dialog_manager.dialog_data, dialog_manager.start_data, selected_group)
+    logger.debug(f"Dialog data: {dialog_manager.dialog_data}, Start data: {dialog_manager.start_data}, Selected group: {selected_group}")
 
     if not selected_group:
         await callback.answer("❌ Группа не найден")
@@ -205,7 +199,7 @@ async def on_confirm_group_creation(
     group_title = dialog_manager.dialog_data.get("group_title")
     group_description = dialog_manager.dialog_data.get("group_description")
 
-    print("DONE?")
+    logger.debug("Confirming group creation")
 
     from src.modules.groups.schemes import GroupCreateRequest
 
@@ -257,19 +251,17 @@ async def on_back_to_profile(
     dialog_manager: DialogManager,
 ):
     """Go back to profile and clear sort"""
-    # dialog_manager.dialog_data.pop("sort_by", None)  # Clear sort
     await dialog_manager.done()
 
 async def getter_client_group_info(dialog_manager: DialogManager, **kwargs):
-    print(dialog_manager.dialog_data, dialog_manager.start_data)
-    # user = await user_service.get_user_by_id(dialog_manager.start_data.get("telegram_id"))
+    logger.debug(f"Dialog data: {dialog_manager.dialog_data}, Start data: {dialog_manager.start_data}")
     
     group_id = await service.get_client_group(dialog_manager.start_data.get("telegram_id"))
     if group_id is None:
         return {"group_name": "Группа не найдена", "group_description": ""}
     group = await service.get_group_by_id(group_id)
     
-    print("Group info:", group)
+    logger.debug(f"Group info: {group}")
     
     if not group:
         return {"group_name": "Группа не найдена", "group_description": ""}

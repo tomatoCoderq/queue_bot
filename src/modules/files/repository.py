@@ -7,7 +7,7 @@ from src.storages.models import StoredFiles
 
 
 async def save_file(file_data: StoredFiles, db: DbSession) -> StoredFiles: # type: ignore
-    """Сохранение файла в базу данных"""
+    """Saving file record to the database"""
     db.add(file_data)
     await db.commit()
     await db.refresh(file_data)
@@ -15,7 +15,7 @@ async def save_file(file_data: StoredFiles, db: DbSession) -> StoredFiles: # typ
 
 
 async def get_files_by_task(task_id: UUID, db: DbSession) -> List[StoredFiles]: # type: ignore
-    """Получение всех файлов задачи"""
+    """Getting all files of a task"""
     result = await db.execute(
         select(StoredFiles).where(StoredFiles.task_id == task_id)
     )
@@ -23,7 +23,7 @@ async def get_files_by_task(task_id: UUID, db: DbSession) -> List[StoredFiles]: 
 
 
 async def get_file_by_id(file_id: UUID, db: DbSession) -> Optional[StoredFiles]: # type: ignore
-    """Получение файла по ID"""
+    """Getting a file by ID"""
     result = await db.execute(
         select(StoredFiles).where(StoredFiles.id == file_id)
     )
@@ -31,7 +31,7 @@ async def get_file_by_id(file_id: UUID, db: DbSession) -> Optional[StoredFiles]:
 
 
 async def delete_file_record(file_id: UUID, db: DbSession) -> bool: # type: ignore
-    """Удаление записи файла из базы данных"""
+    """Deleting a file record from the database"""
     file_obj = await get_file_by_id(file_id, db)
     if not file_obj:
         return False

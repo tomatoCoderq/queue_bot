@@ -10,6 +10,8 @@ from src.storages.dependencies import DbSession
 from src.modules.files import repository as repo
 from src.modules.files.schemes import *
 from src.storages.models import StoredFiles
+from src.errors import NotFoundError
+from loguru import logger
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -30,24 +32,20 @@ async def upload_file(
     type: Optional[str] = Form(None), 
 ):
     """Загрузка файла на сервер"""
+    logger.info(f"Uploading file: {file.filename}")
     try:
-        # Генерируем уникальное имя файла
         import time
         timestamp = str(int(time.time()))
         safe_filename = f"{timestamp}_{file.filename}"
         file_path = UPLOAD_DIR / safe_filename
 
-        # Сохраняем файл на диск
         async with aiofiles.open(file_path, 'wb') as f:
             content = await file.read()
             await f.write(content)
 
-        file_type = type
-        
-        # Создаем запись в БД
         stored_file = StoredFiles(
             filename=file.filename,
-            type=file_type,
+            type=type,
             file_id=file_id if file_id else "",
             task_id=UUID(task_id) if task_id else None,
             path=str(file_path),
@@ -56,12 +54,11 @@ async def upload_file(
         saved_file = await repo.save_file(stored_file, db)
         return saved_file
 
-    except Exception as e:
-        # Удаляем файл если что-то пошло не так
+    except OSError as e:
         if 'file_path' in locals() and file_path.exists():
             file_path.unlink()
-        raise HTTPException(
-            status_code=500, detail=f"Failed to upload file: {str(e)}")
+        logger.error(f"File write error: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка записи файла: {e}")
 
 
 @router.get("/task/{task_id}",
@@ -69,6 +66,7 @@ async def upload_file(
             description="Get files by task ID")
 async def get_task_files(task_id: UUID, db: DbSession):  # type: ignore
     """Получение файлов задачи"""
+    logger.info(f"Fetching files for task: {task_id}")
     files = await repo.get_files_by_task(task_id, db)
     return files
 
@@ -78,23 +76,23 @@ async def get_task_files(task_id: UUID, db: DbSession):  # type: ignore
                description="Delete file")
 async def delete_file(file_id: UUID, db: DbSession):  # type: ignore
     """Удаление файла"""
-    # Получаем информацию о файле для удаления с диска
+    logger.info(f"Deleting file: {file_id}")
     file_obj = await repo.get_file_by_id(file_id, db)
     if not file_obj:
-        raise HTTPException(status_code=404, detail="File not found")
+        logger.warning(f"File not found: {file_id}")
+        raise NotFoundError("file")
 
-    # Удаляем из БД
     success = await repo.delete_file_record(file_id, db)
     if not success:
-        raise HTTPException(
-            status_code=404, detail="Failed to delete file from database")
+        logger.error(f"Failed to delete file from database: {file_id}")
+        raise HTTPException(status_code=404, detail="Не удалось удалить файл из базы")
 
-    # Удаляем файл с диска
     try:
         if os.path.exists(file_obj.file_path):
             os.unlink(file_obj.file_path)
-    except Exception as e:
-        print(f"Warning: Failed to delete file from disk: {e}")
+    except OSError as e:
+        logger.error(f"Failed to delete file from disk: {e}")
+        raise HTTPException(status_code=500, detail=f"Не удалось удалить файл с диска: {e}")
 
     return {"message": "File deleted successfully"}
 
@@ -103,12 +101,15 @@ async def delete_file(file_id: UUID, db: DbSession):  # type: ignore
             description="Download file")
 async def download_file(file_id: UUID, db: DbSession):  # type: ignore
     """Скачивание файла"""
+    logger.info(f"Downloading file: {file_id}")
     file_obj = await repo.get_file_by_id(file_id, db)
     if not file_obj:
-        raise HTTPException(status_code=404, detail="File not found")
+        logger.warning(f"File not found: {file_id}")
+        raise NotFoundError("file")
 
     if not os.path.exists(file_obj.file_path):
-        raise HTTPException(status_code=404, detail="File not found on disk")
+        logger.warning(f"File not found on disk: {file_obj.file_path}")
+        raise HTTPException(status_code=404, detail="Файл не найден на диске")
 
     return FileResponse(
         path=file_obj.file_path,

@@ -14,3 +14,7 @@ Queue\ Bot\ API/
 not/
 .ruff_cache/
 uploads/
+bot.log
+logs/
+app.log
+dbdata/

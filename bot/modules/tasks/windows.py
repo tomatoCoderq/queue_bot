@@ -20,7 +20,6 @@ def create_task_dialogs():
 
         on_task_select,
         on_back_to_profile,
-        # get_student_tasks_for_operator_data,
         tasks_list_getter,
         on_create_task_start,
         on_task_title_input,

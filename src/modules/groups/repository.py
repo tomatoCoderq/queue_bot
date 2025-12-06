@@ -29,14 +29,6 @@ async def read_group_by_name(name: str, db: DbSession): # type: ignore
     return result.scalar()
 
 
-# async def add_student_to_group(group: Group, student: Student, db: DbSession):  # type: ignore
-#     print(group)
-#     group.students.append(student)
-#     await db.commit()
-#     await db.refresh(group)
-#     return group
-
-
 async def add_client_to_group(group: Group, user: models.User, db: DbSession):  # type: ignore
     result = await db.execute(
         select(models.Client)
@@ -63,13 +55,7 @@ async def add_client_to_group(group: Group, user: models.User, db: DbSession):  
     return group
 
 
-async def remove_client(group: Group, client: Client, db: DbSession):  # type: ignore
-    # result = await db.execute(
-    #     select(models.Client)
-    #     .where(models.Client.user_id == user.id)
-    # )
-    # client = result.scalar()
-    
+async def remove_client(group: Group, client: Client, db: DbSession):  # type: ignore    
     client.group_id = None
     
     db.add(client)

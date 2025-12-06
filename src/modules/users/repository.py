@@ -17,20 +17,6 @@ async def read_all_clients(session: DbSession):  # type: ignore
     return result.scalars().all()
 
 
-# async def read_all_students(session: DbSession):  # type: ignore
-#     statement = select(BaseTelegramUser).where(
-#         BaseTelegramUser.role == "STUDENT")
-#     result = await session.execute(statement)
-#     return result.scalars().all()
-
-
-# async def read_all_teachers(session: DbSession):  # type: ignore
-#     statement = select(BaseTelegramUser).where(
-#         BaseTelegramUser.role == "TEACHER")
-#     result = await session.execute(statement)
-#     return result.scalars().all()
-
-
 async def read_all_operators(session: DbSession):  # type: ignore
     statement = select(models.Operator)
     result = await session.execute(statement)

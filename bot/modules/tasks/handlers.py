@@ -8,6 +8,7 @@ from datetime import datetime, time, timedelta, timezone
 
 from typing import Dict, Any
 from html import escape
+from loguru import logger
 
 
 from bot.modules.states import OperatorTaskStates as TaskStates
@@ -22,16 +23,16 @@ router = Router()
 
 async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
     start_data = dialog_manager.start_data
-    print(start_data, dialog_manager.dialog_data)
+    logger.info(f"Dialog data: {dialog_manager.dialog_data}")
+    logger.info(f"Start data: {dialog_manager.start_data}")
+
     context = start_data.get("context")
 
     if not context:
         raise ValueError("No context given")
 
-    print("context: ", start_data.get("context"))
-    print(start_data)
+    logger.info(f"Start data: {start_data}")
 
-    # общий sort + show_completed, как у тебя
     sort_by = dialog_manager.dialog_data.get("sort_by", None)
     show_completed = dialog_manager.dialog_data.get("show_completed", False)
 
@@ -58,7 +59,7 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
         all_tasks = await user_service.get_student_tasks(telegram_id, sort_by=sort_by)
         tasks = all_tasks
 
-        print("All tasks for student:", all_tasks)
+        logger.info(f"All tasks for student: {len(all_tasks)}")
 
         header = "📚 Мои задачи"
 
@@ -69,7 +70,7 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
 
         all_tasks = await user_service.get_student_tasks(student_telegram_id, sort_by=sort_by)
 
-        print("All tasks for student by operator:", all_tasks)
+        logger.info(f"All tasks for student by operator: {len(all_tasks)}")
 
         tasks = all_tasks
         header = f" Задачи студента: {escape(student_name)}"
@@ -83,7 +84,7 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
         group_id = start_data.get("id")
         all_tasks = await groups_service.get_group_tasks(group_id)
 
-        print("All tasks for group by operator:", all_tasks)
+        logger.info(f"All tasks for group by operator: {len(all_tasks)}")
 
         tasks = all_tasks
         header = f"👥 Задачи группы: {escape(group_name) if group_name else 'Неизвестная группа'}"
@@ -128,11 +129,11 @@ async def tasks_list_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str
 
 async def task_detail_getter(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
     start_data = dialog_manager.start_data
-    print("found task_id: ", start_data, dialog_manager.dialog_data)
+    logger.debug(f"Found task_id in start_data: {start_data}, dialog_data: {dialog_manager.dialog_data}")
     context = start_data.get("context", "student_self")
 
     task_id = start_data.get("task_id")
-    print(task_id)
+    logger.debug(f"Task ID: {task_id}")
     if not task_id:
         return {}
 
@@ -211,7 +212,7 @@ async def on_task_select(
 ):
     dialog_manager.dialog_data["selected_task_id"] = item_id
     dialog_manager.start_data["task_id"] = item_id
-    print("start data:", dialog_manager.start_data)
+    logger.debug(f"Start data: {dialog_manager.start_data}")
     await dialog_manager.start(TaskStates.DETAIL, data=dialog_manager.start_data)
 
 
@@ -303,7 +304,7 @@ async def on_create_task_start(
 ):
     """Start task creation flow"""
     from bot.modules.states import OperatorTaskCreateStates
-    print("D: ", dialog_manager.dialog_data, dialog_manager.start_data)
+    logger.debug(f"Dialog data: {dialog_manager.dialog_data}, Start data: {dialog_manager.start_data}")
 
     await dialog_manager.start(OperatorTaskCreateStates.CREATE_TASK_TITLE, data=dialog_manager.start_data)
 
@@ -512,7 +513,7 @@ async def on_file_received(
             "file_size": doc.file_size
         }
 
-    print("file info", file_info)
+    logger.debug(f"File info: {file_info}")
 
     if file_info:
         # Просто сохраняем информацию о файле, не загружаем пока через API
@@ -578,13 +579,13 @@ async def on_confirm_create_task(
 ):
     """Confirm and create task"""
     # Get data from dialog_data
-    print("DIALOG_DATA:", dialog_manager.dialog_data)
+    logger.debug(f"Dialog data: {dialog_manager.dialog_data}")
     title = dialog_manager.dialog_data.get("task_title", "")
     description = dialog_manager.dialog_data.get("task_description", "")
     start_date = dialog_manager.dialog_data.get("task_start_date", "")
     due_date = dialog_manager.dialog_data.get("task_due_date", "")
 
-    print("start_date:", start_date)
+    logger.debug(f"Start date: {start_date}")
 
     obj_id: str
     current_context = dialog_manager.start_data.get("context")
@@ -599,10 +600,10 @@ async def on_confirm_create_task(
         await callback.answer("❌ Ошибка: неверный контекст создания задачи")
         return
 
-    print(dialog_manager.start_data)
+    logger.debug(f"Start data: {dialog_manager.start_data}")
 
     if not all([title, description, start_date, obj_id]):
-        print([title, description, start_date,  obj_id])
+        logger.debug(f"Missing data - title: {title}, description: {description}, start_date: {start_date}, obj_id: {obj_id}")
         await callback.answer("❌ Ошибка: отсутствуют данные")
         return
 
@@ -618,10 +619,10 @@ async def on_confirm_create_task(
             start_date=start_date,
             due_date=due_date,
         )
-        print("here", task)
+        logger.debug(f"Created task for group: {task}")
 
     if current_context == "student_by_operator":
-        print("give:", start_date, due_date, type(start_date), type(due_date))
+        logger.debug(f"Creating task with dates - start: {start_date} ({type(start_date)}), due: {due_date} ({type(due_date)})")
         task = await create_task_and_assign(
             title=title,
             description=description,
@@ -630,7 +631,7 @@ async def on_confirm_create_task(
             student_telegram_id=obj_id,
         )
 
-    print("c task", task)
+    logger.debug(f"Created task: {task}")
 
     if task:
         task_id = task.get("id")
@@ -649,7 +650,7 @@ async def on_confirm_create_task(
                     file_bytes = file_data.read()
 
                     # Загружаем файл с привязкой к задаче
-                    print("loaded type", file_info["type"])
+                    logger.debug(f"Uploading file type: {file_info['type']}")
                     uploaded_file = await files_service.upload_file(
                         file_data=file_bytes,
                         filename=file_info["name"],
@@ -658,16 +659,16 @@ async def on_confirm_create_task(
                         file_id=file_info["file_id"]
                     )
 
-                    print("FILES UPLOADED? : ", uploaded_file)
+                    logger.debug(f"File uploaded: {uploaded_file}")
 
                     if uploaded_file:
                         uploaded_count += 1
                     else:
-                        print(f"Ошибка загрузки файла file_info['name']")
+                        logger.error(f"Error uploading file: {file_info['name']}")
 
-                print(f"Загружено uploaded_count файлов для задачи {task_id}")
+                logger.info(f"Uploaded {uploaded_count} files for task {task_id}")
             except Exception as e:
-                print(f"Ошибка при загрузке файлов: {e}")
+                logger.error(f"Error uploading files: {e}")
 
         await callback.answer("✅ Задача успешно создана и назначена студенту!")
         # Clear task creation data
@@ -697,7 +698,7 @@ async def on_cancel_create_task(
     # Очищаем pending_files (они еще не загружены в API)
     pending_files = dialog_manager.dialog_data.pop("pending_files", [])
     if pending_files:
-        print(f"Очищено {len(pending_files)} неотправленных файлов")
+        logger.debug(f"Cleared {len(pending_files)} unsent files")
 
     await callback.answer("❌ Создание задачи отменено")
     await dialog_manager.done()
@@ -751,7 +752,7 @@ async def on_view_task_files(c, b, dialog_manager: DialogManager):
         file_name = file.get("filename", "file")
         file_id = file.get("file_id")
 
-        print("fn: ", file_name, file_type, file_id)
+        logger.debug(f"File metadata - name: {file_name}, type: {file_type}, id: {file_id}")
 
         if file_type == "photo":
             albume_photos.append(InputMediaPhoto(
@@ -761,7 +762,6 @@ async def on_view_task_files(c, b, dialog_manager: DialogManager):
             albume_docs.append(InputMediaDocument(
                 media=file_id, caption=file_name))
             # await c.message.answer_document(document=file_id, caption=file_name)
-    # print("alb", albume)
     if albume_photos:
         await c.bot.send_media_group(c.message.chat.id, media=albume_photos)
     if albume_docs:
@@ -849,9 +849,8 @@ async def on_task_result_input(
     from bot.modules.tasks.service import submit_task_result
     from bot.modules.states import StudentStates
 
-    print("DATA: ")
-    print(dialog_manager.dialog_data)
-    print(dialog_manager.start_data)
+    logger.debug(f"Dialog data: {dialog_manager.dialog_data}")
+    logger.debug(f"Start data: {dialog_manager.start_data}")
 
     task_id = dialog_manager.start_data.get("task_id")
 

@@ -71,7 +71,7 @@ class Task(SQLModel, table=True):
     __tablename__ = "tasks"  # type: ignore
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    title: str = Field(max_length=20, index=True,
+    title: str = Field(max_length=300, index=True,
                        description="Title of the task. Should be short")
     description: Optional[str] = Field(
         default=None, description="Description of the task")
@@ -139,7 +139,6 @@ class Task(SQLModel, table=True):
 
         if self.start_date >= self.due_date:
             raise ValueError("start_date must be earlier than due_date")
-        print("ERROR", self.start_date, self.created_at, self.due_date)
 
         return self
 

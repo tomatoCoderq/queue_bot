@@ -5,6 +5,8 @@ from src.storages.models import *
 from src.modules.tasks.schemes import *
 from src.storages.dependencies import DbSession
 
+from loguru import logger
+
 
 async def read_all_tasks(session: DbSession):  # type: ignore
     tasks = await session.execute(select(Task))
@@ -29,7 +31,6 @@ async def delete_task_repo(task: Task, session: DbSession):  # type: ignore
 
 
 async def update_task_repo(task: Task, task_update: TaskUpdateRequest, session: DbSession):  # type: ignore
-    # TODO: Maybe there is much more beaufiul way to do this?
     for key, value in task_update.model_dump(exclude_unset=True).items():
         setattr(task, key, value)
 
@@ -67,10 +68,8 @@ async def mark_task_as_complete_repo(task: Task, session: DbSession): # type: ig
 
 
 async def read_tasks_by_student(student_id: UUID, session: DbSession):  # type: ignore
-    print("Reading tasks for student_id:", student_id)
     statement = select(Task).where(Task.client_id == student_id)
     result = await session.execute(statement)
-    # print("result:", result.scalars().all())
     return result.scalars().all()
 
 async def read_tasks_by_student_sort_start_time(student_id: UUID, session: DbSession): # type: ignore
@@ -145,7 +144,7 @@ async def read_overdue_tasks(session: DbSession):  # type: ignore
     # Use timezone-aware datetime
     now = datetime.now(timezone.utc)
     
-    print(f"🔍 Checking for overdue tasks at {now}")
+    logger.debug(f"Checking overdue")
     
     statement = select(Task).where(
         Task.due_date != None,  # type: ignore
@@ -155,9 +154,7 @@ async def read_overdue_tasks(session: DbSession):  # type: ignore
     result = await session.execute(statement)
     tasks = result.scalars().all()
     
-    print(f"📊 Found {len(tasks)} overdue tasks")
-    for task in tasks:
-        print(f"  - Task: {task.title}, Due: {task.due_date}, Status: {task.status}")
+    logger.debug(f"Found {len(tasks)} overdue tasks")
     
     return tasks
 

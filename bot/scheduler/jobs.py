@@ -10,7 +10,7 @@ async def check_upcoming_deadlines():
     Запускается каждую минуту.
     """
     try:
-        logger.info("🔍 Checking tasks with upcoming deadlines...")
+        logger.info("Checking tasks")
         
         logger.info("✅ Deadline check completed")
         
@@ -25,7 +25,7 @@ async def check_overdue_tasks():
     Помечает просроченные задачи и отправляет уведомления.
     """
     try:
-        logger.info("🔍 Checking overdue tasks...")
+        logger.info("Checking overdue")
         
         from bot.modules.tasks.service import (
             get_overdue_tasks,
@@ -39,7 +39,7 @@ async def check_overdue_tasks():
         tasks = await get_overdue_tasks()
         
         if not tasks:
-            logger.info("✅ No overdue tasks found")
+            logger.info("No overdue")
             return
         
         logger.info(f"Found {len(tasks)} overdue tasks")

@@ -13,6 +13,8 @@ from src.modules.groups.schemes import *
 from src.modules.tasks.schemes import *
 
 from src.storages.models import Group
+from src.errors import NotFoundError, ValidationError
+from loguru import logger
 
 router = Router(prefix="/groups", tags=["groups"])
 
@@ -21,20 +23,22 @@ router = Router(prefix="/groups", tags=["groups"])
              status_code=202,
              description="Add specific student as member of given group")
 async def add_student_to_group(group_id: UUID, student_id: UUID | str, by_telegram_id: bool, db: DbSession):  # type: ignore
+    logger.info(f"Adding student {student_id} to group {group_id}")
     group = await repo.read_group(group_id, db)
     student = None
-    print("by_telegram_id:", by_telegram_id)
     if by_telegram_id:
         student = await user_repo.read_user_by_telegram_id(student_id, db)
     else:
         student = await user_repo.read_user(student_id, db)
 
     if group is None:
-        raise HTTPException(status_code=404, detail="Group not found")
+        logger.warning(f"Group not found: {group_id}")
+        raise NotFoundError("group")
     if student is None:
-        raise HTTPException(status_code=404, detail="Student not found")
+        logger.warning(f"Student not found: {student_id}")
+        raise NotFoundError("student")
+
     updated_group = await repo.add_client_to_group(group, student, db)
-    print("HERE ERROR")
     return updated_group
 
 
@@ -43,6 +47,7 @@ async def add_student_to_group(group_id: UUID, student_id: UUID | str, by_telegr
              response_model=GroupCreateResponse,
              description="Create a new group")
 async def create_new_group(group: GroupCreateRequest, db: DbSession):  # type: ignore
+    logger.info("Creating new group")
     group_model = Group.model_validate(group)
     await repo.add_new_group(group_model, db)
     return group_model
@@ -52,6 +57,7 @@ async def create_new_group(group: GroupCreateRequest, db: DbSession):  # type: i
             response_model=List[GroupReadResponse],
             description="Retrieve a list of all groups")
 async def get_all_groups(db: DbSession):  # type: ignore
+    logger.info("Fetching all groups")
     groups = await repo.read_all_groups(db)
     return groups
 
@@ -70,17 +76,16 @@ async def get_all_groups(db: DbSession):  # type: ignore
             response_model=GroupReadResponse,
             description="Retrieve a specific group by its ID")
 async def get_group(input: str, by_id: bool, db: DbSession):  # type: ignore
+    logger.info(f"Fetching group: {input}")
     group = None
-    print("Input:", input)
     if by_id:
         group = await repo.read_group(uuid.UUID(input), db)
-        print("case UUID:", group)
     else:
         group = await repo.read_group_by_name(input, db)
-        print("case str:", group)
 
     if group is None:
-        raise HTTPException(status_code=404, detail="Group not found")
+        logger.warning(f"Group not found: {input}")
+        raise NotFoundError("group")
     return group
 
 
@@ -89,19 +94,21 @@ async def get_group(input: str, by_id: bool, db: DbSession):  # type: ignore
                description="Remove specific student as member of given group")
 # type: ignore
 async def remove_client_from_group(group_id: UUID, client_id: UUID | str, by_telegram_id: bool, db: DbSession): # type: ignore
+    logger.info(f"Removing student {client_id} from group {group_id}")
     group = await repo.read_group(group_id, db)
     client = None
     if by_telegram_id:
         client = await user_repo.read_client_by_telegram_id(client_id, db)
     else:
         client = await user_repo.read_client_by_user_id(client_id, db)
-        
     
     if group is None:
-        raise HTTPException(status_code=404, detail="Group not found")
+        logger.warning(f"Group not found: {group_id}")
+        raise NotFoundError("group")
 
     if client is None:
-        raise HTTPException(status_code=404, detail="Student not found")
+        logger.warning(f"Student not found: {client_id}")
+        raise NotFoundError("student")
 
     await repo.remove_client(group, client, db)
 
@@ -111,9 +118,11 @@ async def remove_client_from_group(group_id: UUID, client_id: UUID | str, by_tel
             response_model=List[TaskReadResponse],
             description="Get all tasks which are assigned to given group")
 async def get_group_tasks(group_id: UUID, db: DbSession):  # type: ignore
+    logger.info(f"Fetching tasks for group: {group_id}")
     group = await repo.read_group(group_id, db)
     if group is None:
-        raise HTTPException(status_code=404, detail="Group not found")
+        logger.warning(f"Group not found: {group_id}")
+        raise NotFoundError("group")
 
     tasks = await repo.get_tasks(group, db)
     return tasks
@@ -124,9 +133,11 @@ async def get_group_tasks(group_id: UUID, db: DbSession):  # type: ignore
             # response_model=List[ClientReadResponse],
             description="Get all clients which are members of given group")
 async def get_group_clients(group_id: UUID, db: DbSession):  # type: ignore
+    logger.info(f"Fetching clients for group: {group_id}")
     group = await repo.read_group(group_id, db)
     if group is None:
-        raise HTTPException(status_code=404, detail="Group not found")
+        logger.warning(f"Group not found: {group_id}")
+        raise NotFoundError("group")
 
     clients = group.clients
     users = []

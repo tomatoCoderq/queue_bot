@@ -115,14 +115,9 @@ def create_group_dialogs():
             ),
             id="students_scroll",
             width=1,
-            height=5,  # Max 5 students per page
+            height=5,  
         ),
         Back(Const("Назад")),
-        # Button(
-        #     Const("🔙 В профиль"),
-        #     id="back_to_profile",
-        #     on_click=on_back_to_profile,
-        # ),
         getter=get_operator_students_data,
         state=OperatorGroupsStates.GROUP_ADD_USER,
     )

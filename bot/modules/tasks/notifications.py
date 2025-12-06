@@ -12,18 +12,7 @@ async def send_overdue_notification(
     due_date: str,
     bot: Bot = None
 ) -> bool:
-    """
-    Отправить уведомление студенту о просроченной задаче.
-    
-    Args:
-        telegram_id: Telegram ID студента
-        task_title: Название задачи
-        due_date: Дедлайн который был пропущен
-        bot: Экземпляр бота
-    
-    Returns:
-        bool: True если успешно отправлено
-    """
+    """Отправить уведомление студенту о просроченной задаче."""
     try:
         # Получаем бота из глобального контекста если не передан
         if bot is None:
