@@ -5,3 +5,16 @@ database/*
 .venv/
 permanent/*
 data.xlsx
+.idea/
+__pycache__/
+app.db
+.DS_Store
+.vscode/
+Queue\ Bot\ API/
+not/
+.ruff_cache/
+uploads/
+bot.log
+logs/
+app.log
+dbdata/
