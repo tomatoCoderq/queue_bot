@@ -115,6 +115,64 @@ async def get_all_students() -> List[Dict[str, Any]]:
         return students
 
 
+async def delete_student(telegram_id: int) -> bool:
+    """Delete student by telegram_id"""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            url = f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/users/{telegram_id}"
+            response = await client.delete(url)
+
+            if response.status_code in (200, 202, 204):
+                logger.info(f"Student deleted successfully: {telegram_id}")
+                return True
+
+            logger.warning(f"Failed to delete student {telegram_id}: status {response.status_code}")
+            return False
+    except Exception as e:
+        logger.error(f"Error deleting student {telegram_id}: {e}")
+        return False
+
+
+async def update_user(telegram_id: int, role: Optional[str] = None, first_name: Optional[str] = None, last_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Update user data by telegram_id"""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            # Get user UUID first
+            user = await get_user_by_id(telegram_id)
+            if not user:
+                logger.warning(f"User not found: {telegram_id}")
+                return None
+            
+            user_id = user.get("id")
+            
+            # Prepare update data
+            update_data = {}
+            if role:
+                update_data["role"] = role.upper()
+            if first_name:
+                update_data["first_name"] = first_name
+            if last_name:
+                update_data["last_name"] = last_name
+            
+            if not update_data:
+                logger.warning(f"No data to update for user {telegram_id}")
+                return None
+            
+            # Send PATCH request
+            response = await client.patch(
+                f"http://{settings.api.API_HOST}:{settings.api.API_PORT}/users/{user_id}",
+                json=update_data
+            )
+            response.raise_for_status()
+            
+            updated_user = response.json()
+            logger.info(f"User {telegram_id} updated successfully")
+            return updated_user
+    except Exception as e:
+        logger.error(f"Error updating user {telegram_id}: {e}")
+        return None
+
+
 async def create_task_and_assign(
     title: str,
     description: str,

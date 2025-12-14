@@ -17,6 +17,7 @@ class OperatorStudentsStates(StatesGroup):
     STUDENTS_INFO = State()
     STUDENTS_PENALTIES = State()
     STUDENTS_PRINTS = State()
+    STUDENTS_DELETE_CONFIRM = State()
     
 
 class OperatorTaskStates(StatesGroup):
@@ -62,6 +63,13 @@ class OperatorAddStudentStates(StatesGroup):
     ADD_STUDENT_SELECT_GROUP = State()
     ADD_STUDENT_SELECT_STUDENT = State()
     ADD_STUDENT_CONFIRM = State()
+
+
+class OperatorUpdateUserStates(StatesGroup):
+    UPDATE_USER_ROLE = State()
+    UPDATE_USER_FIRST_NAME = State()
+    UPDATE_USER_LAST_NAME = State()
+    UPDATE_USER_CONFIRM = State()
 
 
 class OperatorReviewStates(StatesGroup):

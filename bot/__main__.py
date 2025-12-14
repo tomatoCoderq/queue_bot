@@ -45,8 +45,9 @@ async def main():
     dp.include_router(registration_dialog)
     dp.include_router(profile_dialog)
 
-    client_dialog = create_user_dialogs()
+    client_dialog, update_user_dialog = create_user_dialogs()
     dp.include_router(client_dialog)
+    dp.include_router(update_user_dialog)
     
     # Create and include group dialogs
     groups_dialog, create_group_dialog, client_groups_dialog = create_group_dialogs()
